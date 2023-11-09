@@ -34,6 +34,14 @@ class ManagerAPI {
         log: text,
       );
 
+  String? getException(List<GraphQLError>? errors) {
+    if (errors == null || errors.isEmpty) return null;
+    if (errors.first.extensions != null) {
+      return errors.first.extensions?['exception_code'].toString();
+    }
+    return errors.first.message.toString();
+  }
+
   Failure getGraphQLFailure(
       OperationException? exception, List<Failure> failures) {
     log("GraphQL Error", error: exception.toString());
@@ -44,7 +52,7 @@ class ManagerAPI {
           DefaultAPIFailures.noConnectionCode)!;
     }
 
-    String? exceptionCode = exception?.graphqlErrors.first.message.toString();
+    String? exceptionCode = getException(exception?.graphqlErrors);
 
     if (exceptionCode == DefaultAPIFailures.timeoutCode) {
       return DefaultAPIFailures.getFailureByCode(
