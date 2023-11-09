@@ -9,7 +9,7 @@ class StringConverter {
 
   static camelCaseToSnakeCase(String camelCase) {
     String snakeCase = camelCase.replaceAllMapped(
-        RegExp(r'(?<!^)[A-Z]'), (match) => match.group(0)!.toLowerCase());
+        RegExp(r'(?<!^)[A-Z]'), (match) => '_${match.group(0)!.toLowerCase()}');
     return snakeCase.toLowerCase();
   }
 }
