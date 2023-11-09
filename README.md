@@ -25,7 +25,7 @@ add files of .graphql on this folder lib/src/services/graphql/
 
 exemplo:
 login.graphql
-```graphql
+```
 mutation login($email: String!, $password: String!) {
     Login(dataLogin: {email: $email, password: $password}) {
         authToken {
