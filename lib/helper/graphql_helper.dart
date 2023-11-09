@@ -17,7 +17,8 @@ class GraphQLHelper implements IGraphQLHelper {
       "${const String.fromEnvironment("BASEAPIURL")}/graphql",
       defaultHeaders: token != null
           ? {
-              "Authorization": "OctopusApi tok = $token",
+              "Authorization":
+                  "${const String.fromEnvironment("BASETOKENPROJECT")}$token",
             }
           : {},
     );
