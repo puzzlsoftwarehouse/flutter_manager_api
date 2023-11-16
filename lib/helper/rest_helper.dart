@@ -86,9 +86,14 @@ class RestHelper {
       log(response.body.toString());
       if (!request.finalized) request.finalize();
 
+      Map<String, dynamic> body = jsonDecode(response.body);
+
+      String? exceptionCode = body['exception_code'];
+      String? errorMessage = body['detail'];
+
       return _errorServer(
-        code: response.statusCode,
-        message: response.reasonPhrase,
+        code: int.tryParse(exceptionCode ?? '') ?? response.statusCode,
+        message: errorMessage ?? response.reasonPhrase,
       );
     });
   }
