@@ -101,8 +101,7 @@ class ManagerAPI {
       }
       Map<String, dynamic>? result = await getCorrectRestRequest(requestResult);
       if (result?['error'] != null) {
-        return Left(getDefaultFailure(
-            result!['error']['code'].toString() + result['error']['message']));
+        return Left(getRestFailure(result!['error'], requestResult.failures));
       }
       return Right(requestResult.returnRequest(result!));
     }
