@@ -67,7 +67,7 @@ class RestHelper {
       uri,
       onProgress: (bytes, totalBytes) {
         if (streamProgress != null) {
-          streamProgress.add(((bytes * 100) / totalBytes).round());
+          streamProgress.add(((bytes / totalBytes) * 100).toInt());
         }
       },
     );
