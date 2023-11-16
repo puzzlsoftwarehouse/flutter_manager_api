@@ -134,12 +134,17 @@ class ManagerAPI {
       return DefaultAPIFailures.getFailureByCode(
           DefaultAPIFailures.timeoutCode)!;
     }
-
-    Failure? failure = _failures
-        .firstWhereOrNull((failure) => failure.code == exception['code']);
+    String? code;
+    if (exception['code'] is int) {
+      code = exception['code'].toString();
+    } else {
+      code = exception['code'];
+    }
+    Failure? failure =
+        _failures.firstWhereOrNull((failure) => failure.code == code);
 
     return failure ??
-        getDefaultFailure(exception['code'] + exception['message']);
+        getDefaultFailure("${code ?? ""}  ${exception['message']}");
   }
 
   RestRequest convertRestRequest(Map<String, dynamic>? request) =>
