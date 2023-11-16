@@ -88,11 +88,11 @@ class RestHelper {
 
       Map<String, dynamic> body = jsonDecode(response.body);
 
-      String? exceptionCode = body['exception_code'];
+      int? exceptionCode = body['exception_code'];
       String? errorMessage = body['detail'];
 
       return _errorServer(
-        code: int.tryParse(exceptionCode ?? '') ?? response.statusCode,
+        code: exceptionCode ?? response.statusCode,
         message: errorMessage ?? response.reasonPhrase,
       );
     });
