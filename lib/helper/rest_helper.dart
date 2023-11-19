@@ -4,6 +4,7 @@ import 'dart:developer';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:manager_api/default_api_failures.dart';
 import 'package:manager_api/requests/rest_request.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -70,7 +71,7 @@ class RestHelper {
     BehaviorSubject<int>? streamProgress,
     CancelToken? cancelToken,
   }) async {
-    Dio _dio = Dio();
+    Dio dio = Dio();
     MultipartFile multipartFile = await MultipartFile.fromFile(
       file.path,
       filename: file.path.split('/').last,
@@ -79,7 +80,7 @@ class RestHelper {
     if (headers != null) localHeaders.addAll(headers);
     FormData formData = FormData.fromMap({'file': multipartFile});
 
-    final Response response = await _dio.post(
+    final Response response = await dio.post(
       '${const String.fromEnvironment("BASEAPIURL")}/media/upload',
       data: formData,
       onSendProgress: (a, b) => streamProgress?.add(((a / b) * 100).toInt()),
@@ -91,11 +92,11 @@ class RestHelper {
     );
     debugPrint(response.statusMessage.toString());
     if (response.statusCode == 200) {
-      _dio.close();
+      dio.close();
       return _successData(response, RequestResponseBodyType.json);
     }
     log(response.data.toString());
-    _dio.close();
+    dio.close();
 
     Map<String, dynamic> body = jsonDecode(response.data);
 
@@ -144,6 +145,7 @@ class RestHelper {
         case DioExceptionType.cancel:
           return {
             'error': {
+              'code': DefaultAPIFailures.cancelErrorCode,
               'message': 'canceled by user',
             }
           };

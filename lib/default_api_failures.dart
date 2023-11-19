@@ -23,6 +23,7 @@ class DefaultAPIFailures {
   static const String unknownErrorCode = '000';
   static const String serverErrorCode = 'server';
   static const String notFoundErrorCode = 'notFound';
+  static const String cancelErrorCode = 'cancel';
   static String unknownErrorMessage = managerDefaultAPIFailures.unknownError;
 
   static List<Failure> get failures => [
@@ -45,6 +46,10 @@ class DefaultAPIFailures {
         _failure(
           serverErrorCode,
           message: managerDefaultAPIFailures.serverError,
+        ),
+        _failure(
+          cancelErrorCode,
+          message: managerDefaultAPIFailures.cancelError,
         ),
       ];
 
