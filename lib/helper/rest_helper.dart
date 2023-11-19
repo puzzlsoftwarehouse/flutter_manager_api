@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:manager_api/default_api_failures.dart';
 import 'package:rxdart/rxdart.dart';
+import 'package:path/path.dart';
 
 class RestHelper {
   static const Duration _defaultTimeout = Duration(seconds: 15);
@@ -70,11 +71,12 @@ class RestHelper {
     BehaviorSubject<int>? streamProgress,
     CancelToken? cancelToken,
   }) async {
+    String fileName = basename(file.path);
     return await tryRequest(() async {
       Dio dio = Dio();
       MultipartFile multipartFile = await MultipartFile.fromFile(
         file.path,
-        filename: file.path.split('/').last,
+        filename: fileName,
       );
       Map<String, dynamic> localHeaders = {
         "Content-Type": "multipart/form-data"
