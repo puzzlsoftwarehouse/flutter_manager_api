@@ -111,9 +111,6 @@ class RestHelper {
   }
 
   Map<String, dynamic> _successData(Response response) {
-    if (response.data is String) {
-      return {"data": jsonDecode(response.data)};
-    }
     return {"data": response.data};
   }
 
