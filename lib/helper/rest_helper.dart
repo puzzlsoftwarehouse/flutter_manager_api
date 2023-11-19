@@ -88,7 +88,7 @@ class RestHelper {
     );
     if (response.statusCode == 200) {
       _dio.close();
-      return _successData(response as Response, RequestResponseBodyType.json);
+      return _successData(response, RequestResponseBodyType.json);
     }
     log(response.data.toString());
     _dio.close();
