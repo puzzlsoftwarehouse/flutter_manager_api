@@ -65,8 +65,8 @@ class RestHelper {
       file.path,
       filename: file.path.split('/').last,
     );
-    Map<String, dynamic> _headers = {"Content-Type": "multipart/form-data"};
-    if (headers != null) _headers.addAll(headers);
+    Map<String, dynamic> localHeaders = {"Content-Type": "multipart/form-data"};
+    if (headers != null) localHeaders.addAll(headers);
     dio.FormData formData = dio.FormData.fromMap({'file': multipartFile});
 
     final dio.Response response = await _dio.post(
@@ -75,7 +75,7 @@ class RestHelper {
       onSendProgress: (a, b) => streamProgress?.add(((a / b) * 100).toInt()),
       queryParameters: parameters,
       cancelToken: cancelToken,
-      options: dio.Options(headers: _headers),
+      options: dio.Options(headers: localHeaders),
     );
     if (response.statusCode == 200) {
       _dio.close();
