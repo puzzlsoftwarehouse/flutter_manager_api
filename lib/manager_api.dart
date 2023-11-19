@@ -1,6 +1,7 @@
 import 'dart:developer';
 
 import 'package:collection/collection.dart';
+import 'package:dio/dio.dart';
 import 'package:graphql/client.dart';
 import 'package:manager_api/default_api_failures.dart';
 import 'package:manager_api/graphql_read.dart';
@@ -168,7 +169,9 @@ class ManagerAPI {
       return await _restAPI.getRequest(
         url: request.url,
         headers: request.headers,
-        responseType: request.responseType,
+        responseType: request.bodyResponseType == RequestResponseBodyType.bytes
+            ? ResponseType.bytes
+            : ResponseType.json,
       );
     }
     if (request.type == RequestRestType.post) {
