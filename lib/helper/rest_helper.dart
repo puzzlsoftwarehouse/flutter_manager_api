@@ -147,7 +147,7 @@ class RestHelper {
               'message': 'canceled by user',
             }
           };
-        case DioExceptionType.connectionError:
+        case DioExceptionType.connectionError || DioExceptionType.unknown:
           return {
             'error': {
               'message': 'no Internet connection',
