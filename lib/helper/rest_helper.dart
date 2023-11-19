@@ -5,7 +5,6 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:manager_api/default_api_failures.dart';
-import 'package:manager_api/requests/rest_request.dart';
 import 'package:rxdart/rxdart.dart';
 
 class RestHelper {
@@ -14,7 +13,6 @@ class RestHelper {
   Future<Map<String, dynamic>> getRequest({
     required String url,
     Map<String, String>? headers = const {},
-    required RequestResponseBodyType bodyType,
   }) async {
     return await tryRequest(() async {
       Response response = await Dio()
@@ -27,7 +25,7 @@ class RestHelper {
           .timeout(_defaultTimeout);
 
       bool isSuccess = response.statusCode == 200;
-      if (isSuccess) return _successData(response, bodyType);
+      if (isSuccess) return _successData(response);
 
       return _errorServer(
         code: response.statusCode.toString(),
@@ -40,7 +38,6 @@ class RestHelper {
     required String url,
     Map? body,
     Map<String, String>? headers = const {},
-    required RequestResponseBodyType bodyType,
   }) async {
     return await tryRequest(() async {
       Response response = await Dio()
@@ -54,7 +51,7 @@ class RestHelper {
           .timeout(_defaultTimeout);
 
       bool isSuccess = response.statusCode == 200;
-      if (isSuccess) return _successData(response, bodyType);
+      if (isSuccess) return _successData(response);
 
       return _errorServer(
         code: response.statusCode.toString(),
@@ -96,7 +93,7 @@ class RestHelper {
       debugPrint(response.statusMessage.toString());
       if (response.statusCode == 200) {
         dio.close();
-        return _successData(response, RequestResponseBodyType.json);
+        return _successData(response);
       }
       log(response.data.toString());
       dio.close();
@@ -113,9 +110,8 @@ class RestHelper {
     });
   }
 
-  Map<String, dynamic> _successData(
-      Response response, RequestResponseBodyType type) {
-    if (type == RequestResponseBodyType.json) {
+  Map<String, dynamic> _successData(Response response) {
+    if (response.data is String) {
       return {"data": jsonDecode(response.data)};
     }
     return {"data": response.data};

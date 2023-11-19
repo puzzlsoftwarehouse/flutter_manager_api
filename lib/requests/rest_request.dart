@@ -17,7 +17,6 @@ class RestRequest<ResultLR> extends RequestAPI<ResultLR> {
   final String? path;
   final BehaviorSubject<int>? streamProgress;
   final Map<String, dynamic>? parameters;
-  final RequestResponseBodyType bodyResponseType;
   final BodyType bodyType;
   final CancelToken? cancelToken;
 
@@ -32,7 +31,6 @@ class RestRequest<ResultLR> extends RequestAPI<ResultLR> {
     this.path,
     this.streamProgress,
     this.parameters,
-    this.bodyResponseType = RequestResponseBodyType.json,
     this.bodyType = BodyType.json,
     this.cancelToken,
   }) : assert(
@@ -52,7 +50,6 @@ class RestRequest<ResultLR> extends RequestAPI<ResultLR> {
         path: json['path'],
         streamProgress: json['streamProgress'],
         parameters: json['parameters'],
-        bodyResponseType: json['bodyResponseType'],
         bodyType: json['bodyType'],
         cancelToken: json['cancelToken'],
       );
@@ -70,7 +67,6 @@ class RestRequest<ResultLR> extends RequestAPI<ResultLR> {
         "path": path,
         "streamProgress": streamProgress,
         "parameters": parameters,
-        "bodyResponseType": bodyResponseType,
         "bodyType": bodyType,
         "cancelToken": cancelToken,
       };
