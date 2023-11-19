@@ -71,42 +71,46 @@ class RestHelper {
     BehaviorSubject<int>? streamProgress,
     CancelToken? cancelToken,
   }) async {
-    Dio dio = Dio();
-    MultipartFile multipartFile = await MultipartFile.fromFile(
-      file.path,
-      filename: file.path.split('/').last,
-    );
-    Map<String, dynamic> localHeaders = {"Content-Type": "multipart/form-data"};
-    if (headers != null) localHeaders.addAll(headers);
-    FormData formData = FormData.fromMap({'file': multipartFile});
+    return await tryRequest(() async {
+      Dio dio = Dio();
+      MultipartFile multipartFile = await MultipartFile.fromFile(
+        file.path,
+        filename: file.path.split('/').last,
+      );
+      Map<String, dynamic> localHeaders = {
+        "Content-Type": "multipart/form-data"
+      };
+      if (headers != null) localHeaders.addAll(headers);
+      FormData formData = FormData.fromMap({'file': multipartFile});
 
-    final Response response = await dio.post(
-      '${const String.fromEnvironment("BASEAPIURL")}/media/upload',
-      data: formData,
-      onSendProgress: (a, b) => streamProgress?.add(((a / b) * 100).toInt()),
-      queryParameters: parameters,
-      cancelToken: cancelToken,
-      options: Options(
-        headers: localHeaders,
-      ),
-    );
-    debugPrint(response.statusMessage.toString());
-    if (response.statusCode == 200) {
+      final Response response = await dio.post(
+        '${const String.fromEnvironment("BASEAPIURL")}/media/upload',
+        data: formData,
+        onSendProgress: (a, b) => streamProgress?.add(((a / b) * 100).toInt()),
+        queryParameters: parameters,
+        cancelToken: cancelToken,
+        options: Options(
+          headers: localHeaders,
+        ),
+      );
+      debugPrint(response.statusMessage.toString());
+      if (response.statusCode == 200) {
+        dio.close();
+        return _successData(response, RequestResponseBodyType.json);
+      }
+      log(response.data.toString());
       dio.close();
-      return _successData(response, RequestResponseBodyType.json);
-    }
-    log(response.data.toString());
-    dio.close();
 
-    Map<String, dynamic> body = jsonDecode(response.data);
+      Map<String, dynamic> body = jsonDecode(response.data);
 
-    int? exceptionCode = body['exception_code'];
-    String? errorMessage = body['detail'];
+      int? exceptionCode = body['exception_code'];
+      String? errorMessage = body['detail'];
 
-    return _errorServer(
-      code: (exceptionCode ?? (response.statusCode ?? "000")).toString(),
-      message: errorMessage ?? response.statusMessage,
-    );
+      return _errorServer(
+        code: (exceptionCode ?? (response.statusCode ?? "000")).toString(),
+        message: errorMessage ?? response.statusMessage,
+      );
+    });
   }
 
   Map<String, dynamic> _successData(
