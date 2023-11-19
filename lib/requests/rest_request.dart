@@ -19,6 +19,7 @@ class RestRequest<ResultLR> extends RequestAPI<ResultLR> {
   final Map<String, dynamic>? parameters;
   final BodyType bodyType;
   final CancelToken? cancelToken;
+  final ResponseType? responseType;
 
   RestRequest({
     required super.name,
@@ -33,6 +34,7 @@ class RestRequest<ResultLR> extends RequestAPI<ResultLR> {
     this.parameters,
     this.bodyType = BodyType.json,
     this.cancelToken,
+    this.responseType,
   }) : assert(
           !(bodyType == BodyType.bytes &&
               (body == null || !body.containsKey('file'))),
@@ -52,6 +54,7 @@ class RestRequest<ResultLR> extends RequestAPI<ResultLR> {
         parameters: json['parameters'],
         bodyType: json['bodyType'],
         cancelToken: json['cancelToken'],
+        responseType: json['responseType'],
       );
 
   @override
@@ -69,5 +72,6 @@ class RestRequest<ResultLR> extends RequestAPI<ResultLR> {
         "parameters": parameters,
         "bodyType": bodyType,
         "cancelToken": cancelToken,
+        "responseType": responseType,
       };
 }

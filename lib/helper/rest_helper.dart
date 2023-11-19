@@ -13,6 +13,7 @@ class RestHelper {
   Future<Map<String, dynamic>> getRequest({
     required String url,
     Map<String, String>? headers = const {},
+    ResponseType? responseType,
   }) async {
     return await tryRequest(() async {
       Response response = await Dio()
@@ -20,6 +21,7 @@ class RestHelper {
             url,
             options: Options(
               headers: headers,
+              responseType: responseType ?? ResponseType.json,
             ),
           )
           .timeout(_defaultTimeout);

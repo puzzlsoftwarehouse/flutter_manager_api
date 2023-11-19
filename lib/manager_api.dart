@@ -168,6 +168,7 @@ class ManagerAPI {
       return await _restAPI.getRequest(
         url: request.url,
         headers: request.headers,
+        responseType: request.responseType,
       );
     }
     if (request.type == RequestRestType.post) {
