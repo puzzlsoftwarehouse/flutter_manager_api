@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
 import 'dart:io';
+import 'package:dio/dio.dart' as dio;
 import 'package:http/http.dart';
 import 'package:manager_api/requests/rest_request.dart';
 import 'package:rxdart/rxdart.dart';
@@ -22,7 +23,7 @@ class RestHelper {
       if (isSuccess) return _successData(response, bodyType);
 
       return _errorServer(
-        code: response.statusCode,
+        code: response.statusCode.toString(),
         message: response.reasonPhrase,
       );
     });
@@ -45,59 +46,49 @@ class RestHelper {
       if (isSuccess) return _successData(response, bodyType);
 
       return _errorServer(
-        code: response.statusCode,
+        code: response.statusCode.toString(),
         message: response.reasonPhrase,
       );
     });
   }
 
   Future<Map<String, dynamic>> sendMedia({
-    required MultipartFile file,
+    required dio.MultipartFile file,
     required String url,
     Map<String, dynamic> parameters = const {},
     Map<String, String>? headers,
     BehaviorSubject<int>? streamProgress,
+    dio.CancelToken? cancelToken,
   }) async {
-    Uri uri = Uri.parse(url).replace(queryParameters: parameters);
+    dio.Dio _dio = dio.Dio();
+    Map<String, dynamic> _headers = {"Content-Type": "multipart/form-data"};
+    if (headers != null) _headers.addAll(headers);
+    dio.FormData formData = dio.FormData.fromMap({'file': file});
 
-    Map<String, String> localHeaders = {"Content-Type": "multipart/form-data"};
-    localHeaders.addAll(headers ?? {});
-    final request = MultipartRequestFile(
-      'POST',
-      uri,
-      onProgress: (bytes, totalBytes) {
-        if (streamProgress != null) {
-          streamProgress.add(
-              int.tryParse(((bytes / totalBytes) * 100).toStringAsFixed(0)) ??
-                  0);
-        }
-      },
+    final dio.Response response = await _dio.post(
+      '${const String.fromEnvironment("BASEAPIURL")}/media/upload',
+      data: formData,
+      onSendProgress: (a, b) => streamProgress?.add(((a / b) * 100).toInt()),
+      queryParameters: parameters,
+      cancelToken: cancelToken,
+      options: dio.Options(headers: _headers),
     );
-    request
-      ..headers.addAll(localHeaders)
-      ..files.add(file);
-    return await tryRequest(() async {
-      StreamedResponse stream = await request.send();
+    if (response.statusCode == 200) {
+      _dio.close();
+      return _successData(response as Response, RequestResponseBodyType.json);
+    }
+    log(response.data.toString());
+    _dio.close();
 
-      final response = await Response.fromStream(stream);
+    Map<String, dynamic> body = jsonDecode(response.data);
 
-      if (response.statusCode == 200) {
-        if (!request.finalized) request.finalize();
-        return _successData(response, RequestResponseBodyType.json);
-      }
-      log(response.body.toString());
-      if (!request.finalized) request.finalize();
+    int? exceptionCode = body['exception_code'];
+    String? errorMessage = body['detail'];
 
-      Map<String, dynamic> body = jsonDecode(response.body);
-
-      int? exceptionCode = body['exception_code'];
-      String? errorMessage = body['detail'];
-
-      return _errorServer(
-        code: exceptionCode ?? response.statusCode,
-        message: errorMessage ?? response.reasonPhrase,
-      );
-    });
+    return _errorServer(
+      code: (exceptionCode ?? (response.statusCode ?? "000")).toString(),
+      message: errorMessage ?? response.statusMessage,
+    );
   }
 
   Map<String, dynamic> _successData(
@@ -109,7 +100,7 @@ class RestHelper {
   }
 
   Map<String, dynamic> _errorServer(
-      {required int code, required String? message}) {
+      {required String code, required String? message}) {
     return {
       'error': {
         'type': 'server',
@@ -150,32 +141,32 @@ class RestHelper {
     }
   }
 }
-
-class MultipartRequestFile extends MultipartRequest {
-  final void Function(int bytes, int totalBytes)? onProgress;
-
-  MultipartRequestFile(
-    String method,
-    Uri url, {
-    this.onProgress,
-  }) : super(method, url);
-
-  @override
-  ByteStream finalize() {
-    final byteStream = super.finalize();
-    if (onProgress == null) return byteStream;
-
-    final total = contentLength;
-    var bytes = 0;
-
-    final t = StreamTransformer.fromHandlers(
-      handleData: (List<int> data, EventSink<List<int>> sink) {
-        bytes += data.length;
-        onProgress?.call(bytes, total);
-        sink.add(data);
-      },
-    );
-    final stream = byteStream.transform(t);
-    return ByteStream(stream);
-  }
-}
+//
+// class MultipartRequestFile extends MultipartRequest {
+//   final void Function(int bytes, int totalBytes)? onProgress;
+//
+//   MultipartRequestFile(
+//     String method,
+//     Uri url, {
+//     this.onProgress,
+//   }) : super(method, url);
+//
+//   @override
+//   ByteStream finalize() {
+//     final byteStream = super.finalize();
+//     if (onProgress == null) return byteStream;
+//
+//     final total = contentLength;
+//     var bytes = 0;
+//
+//     final t = StreamTransformer.fromHandlers(
+//       handleData: (List<int> data, EventSink<List<int>> sink) {
+//         bytes += data.length;
+//         onProgress?.call(bytes, total);
+//         sink.add(data);
+//       },
+//     );
+//     final stream = byteStream.transform(t);
+//     return ByteStream(stream);
+//   }
+// }
