@@ -2,8 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
 import 'dart:io';
-import 'package:dio/dio.dart' as dio;
-import 'package:http/http.dart';
+import 'package:dio/dio.dart';
 import 'package:manager_api/requests/rest_request.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -16,15 +15,21 @@ class RestHelper {
     required RequestResponseBodyType bodyType,
   }) async {
     return await tryRequest(() async {
-      Response response =
-          await get(Uri.parse(url), headers: headers).timeout(_defaultTimeout);
+      Response response = await Dio()
+          .get(
+            url,
+            options: Options(
+              headers: headers,
+            ),
+          )
+          .timeout(_defaultTimeout);
 
       bool isSuccess = response.statusCode == 200;
       if (isSuccess) return _successData(response, bodyType);
 
       return _errorServer(
         code: response.statusCode.toString(),
-        message: response.reasonPhrase,
+        message: response.statusMessage,
       );
     });
   }
@@ -36,18 +41,22 @@ class RestHelper {
     required RequestResponseBodyType bodyType,
   }) async {
     return await tryRequest(() async {
-      Response response = await post(
-        Uri.parse(url),
-        headers: headers,
-        body: body,
-      ).timeout(_defaultTimeout);
+      Response response = await Dio()
+          .post(
+            url,
+            options: Options(
+              headers: headers,
+            ),
+            data: body,
+          )
+          .timeout(_defaultTimeout);
 
       bool isSuccess = response.statusCode == 200;
       if (isSuccess) return _successData(response, bodyType);
 
       return _errorServer(
         code: response.statusCode.toString(),
-        message: response.reasonPhrase,
+        message: response.statusMessage,
       );
     });
   }
@@ -58,24 +67,24 @@ class RestHelper {
     Map<String, dynamic> parameters = const {},
     Map<String, String>? headers,
     BehaviorSubject<int>? streamProgress,
-    dio.CancelToken? cancelToken,
+    CancelToken? cancelToken,
   }) async {
-    dio.Dio _dio = dio.Dio();
-    dio.MultipartFile multipartFile = await dio.MultipartFile.fromFile(
+    Dio _dio = Dio();
+    MultipartFile multipartFile = await MultipartFile.fromFile(
       file.path,
       filename: file.path.split('/').last,
     );
     Map<String, dynamic> localHeaders = {"Content-Type": "multipart/form-data"};
     if (headers != null) localHeaders.addAll(headers);
-    dio.FormData formData = dio.FormData.fromMap({'file': multipartFile});
+    FormData formData = FormData.fromMap({'file': multipartFile});
 
-    final dio.Response response = await _dio.post(
+    final Response response = await _dio.post(
       '${const String.fromEnvironment("BASEAPIURL")}/media/upload',
       data: formData,
       onSendProgress: (a, b) => streamProgress?.add(((a / b) * 100).toInt()),
       queryParameters: parameters,
       cancelToken: cancelToken,
-      options: dio.Options(headers: localHeaders),
+      options: Options(headers: localHeaders),
     );
     if (response.statusCode == 200) {
       _dio.close();
@@ -98,9 +107,9 @@ class RestHelper {
   Map<String, dynamic> _successData(
       Response response, RequestResponseBodyType type) {
     if (type == RequestResponseBodyType.json) {
-      return {"data": jsonDecode(response.body)};
+      return {"data": jsonDecode(response.data)};
     }
-    return {"data": response.bodyBytes};
+    return {"data": response.data};
   }
 
   Map<String, dynamic> _errorServer(
@@ -117,31 +126,36 @@ class RestHelper {
   Future<Map<String, dynamic>> tryRequest(Function() request) async {
     try {
       return await request();
-    } on TimeoutException {
-      return {
-        'error': {
-          'type': 'timeout',
-          'message': 'tempo excedido',
-        }
-      };
-    } on SocketException {
-      return {
-        'error': {
-          'message': 'no Internet connection',
-        }
-      };
-    } on HttpException {
-      return {
-        'error': {
-          'message': 'canceled by user',
-        }
-      };
-    } on ClientException {
-      return {
-        'error': {
-          'message': 'canceled by user',
-        }
-      };
+    } on DioException catch (e) {
+      switch (e.type) {
+        case DioExceptionType.connectionTimeout ||
+              DioExceptionType.receiveTimeout ||
+              DioExceptionType.sendTimeout:
+          return {
+            'error': {
+              'type': 'timeout',
+              'message': 'tempo excedido',
+            }
+          };
+        case DioExceptionType.cancel:
+          return {
+            'error': {
+              'message': 'canceled by user',
+            }
+          };
+        case DioExceptionType.connectionError:
+          return {
+            'error': {
+              'message': 'no Internet connection',
+            }
+          };
+        default:
+          return {
+            'error': {
+              'message': e.message,
+            }
+          };
+      }
     }
   }
 }
