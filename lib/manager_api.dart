@@ -160,6 +160,7 @@ class ManagerAPI {
         parameters: request.parameters ?? {},
         headers: request.headers,
         streamProgress: request.streamProgress,
+        cancelToken: request.cancelToken,
       );
     }
 
