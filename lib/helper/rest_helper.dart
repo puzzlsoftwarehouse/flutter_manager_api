@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:developer';
 import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import 'package:manager_api/requests/rest_request.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -84,8 +85,11 @@ class RestHelper {
       onSendProgress: (a, b) => streamProgress?.add(((a / b) * 100).toInt()),
       queryParameters: parameters,
       cancelToken: cancelToken,
-      options: Options(headers: localHeaders),
+      options: Options(
+        headers: localHeaders,
+      ),
     );
+    debugPrint(response.statusMessage.toString());
     if (response.statusCode == 200) {
       _dio.close();
       return _successData(response, RequestResponseBodyType.json);
