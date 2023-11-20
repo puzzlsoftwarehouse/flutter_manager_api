@@ -64,25 +64,20 @@ class RestHelper {
   }
 
   Future<Map<String, dynamic>> sendMedia({
-    required File file,
+    required MultipartFile file,
     required String url,
     Map<String, dynamic> parameters = const {},
     Map<String, String>? headers,
     BehaviorSubject<int>? streamProgress,
     CancelToken? cancelToken,
   }) async {
-    String fileName = basename(file.path);
     return await tryRequest(() async {
       Dio dio = Dio();
-      MultipartFile multipartFile = await MultipartFile.fromFile(
-        file.path,
-        filename: fileName,
-      );
       Map<String, dynamic> localHeaders = {
         "Content-Type": "multipart/form-data"
       };
       if (headers != null) localHeaders.addAll(headers);
-      FormData formData = FormData.fromMap({'file': multipartFile});
+      FormData formData = FormData.fromMap({'file': file});
 
       final Response response = await dio.post(
         '${const String.fromEnvironment("BASEAPIURL")}/media/upload',
