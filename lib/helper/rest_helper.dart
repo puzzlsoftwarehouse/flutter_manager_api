@@ -152,11 +152,14 @@ class RestHelper {
             }
           };
         default:
-          return {
-            'error': {
-              'message': e.message,
-            }
-          };
+          int? exceptionCode = e.response?.data['exception_code'];
+          String? errorMessage = e.response?.data['detail'];
+
+          return _errorServer(
+            code:
+                (exceptionCode ?? (e.response?.statusCode ?? "000")).toString(),
+            message: errorMessage ?? e.response?.statusMessage,
+          );
       }
     }
   }
