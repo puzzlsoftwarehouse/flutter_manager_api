@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:cross_file/cross_file.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 import 'package:manager_api/helper/send_media_web/large_file_uploader.dart';
 import 'package:rxdart/subjects.dart';
 import 'package:universal_html/html.dart' as html;
