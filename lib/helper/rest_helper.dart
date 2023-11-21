@@ -1,12 +1,11 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:developer';
-import 'dart:io';
+import 'package:cross_file/cross_file.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:manager_api/default_api_failures.dart';
+import 'package:manager_api/helper/send_media_desktop.dart';
+import 'package:manager_api/helper/send_media_web/send_media_web.dart';
 import 'package:rxdart/rxdart.dart';
-import 'package:path/path.dart';
 
 class RestHelper {
   static const Duration _defaultTimeout = Duration(seconds: 15);
@@ -63,8 +62,36 @@ class RestHelper {
     });
   }
 
+  Future<Map<String, dynamic>> getPlatformRequestSendMedia({
+    required XFile file,
+    required String url,
+    Map<String, dynamic> parameters = const {},
+    Map<String, String>? headers,
+    BehaviorSubject<int>? streamProgress,
+    CancelToken? cancelToken,
+  }) async {
+    if (kIsWeb) {
+      return await SendMediaWeb.sendMedia(
+        file: file,
+        url: url,
+        parameters: parameters,
+        headers: headers,
+        streamProgress: streamProgress,
+        cancelToken: cancelToken,
+      );
+    }
+    return await SendMediaDesktop.sendMedia(
+      file: file,
+      url: url,
+      parameters: parameters,
+      headers: headers,
+      streamProgress: streamProgress,
+      cancelToken: cancelToken,
+    );
+  }
+
   Future<Map<String, dynamic>> sendMedia({
-    required MultipartFile file,
+    required XFile file,
     required String url,
     Map<String, dynamic> parameters = const {},
     Map<String, String>? headers,
@@ -72,39 +99,27 @@ class RestHelper {
     CancelToken? cancelToken,
   }) async {
     return await tryRequest(() async {
-      Dio dio = Dio();
-      Map<String, dynamic> localHeaders = {
-        "Content-Type": "multipart/form-data"
-      };
-      if (headers != null) localHeaders.addAll(headers);
-      FormData formData = FormData.fromMap({'file': file});
-
-      final Response response = await dio.post(
-        '${const String.fromEnvironment("BASEAPIURL")}/media/upload',
-        data: formData,
-        onSendProgress: (a, b) => streamProgress?.add(((a / b) * 100).toInt()),
-        queryParameters: parameters,
+      Map<String, dynamic> result = await getPlatformRequestSendMedia(
+        file: file,
+        url: url,
+        parameters: parameters,
+        headers: headers,
+        streamProgress: streamProgress,
         cancelToken: cancelToken,
-        options: Options(
-          headers: localHeaders,
-        ),
       );
-      debugPrint(response.statusMessage.toString());
-      if (response.statusCode == 200) {
-        dio.close();
-        return _successData(response);
+      if (result['data'] != null) {
+        return result;
       }
-      log(response.data.toString());
-      dio.close();
 
-      Map<String, dynamic> body = jsonDecode(response.data);
+      int? exceptionCode = result['exception_code'];
 
-      int? exceptionCode = body['exception_code'];
-      String? errorMessage = body['detail'];
+      String? errorMessage = (result['detail'] is String)
+          ? result['detail']
+          : result['detail'].toString();
 
       return _errorServer(
-        code: (exceptionCode ?? (response.statusCode ?? "000")).toString(),
-        message: errorMessage ?? response.statusMessage,
+        code: (exceptionCode ?? "000").toString(),
+        message: errorMessage,
       );
     });
   }
