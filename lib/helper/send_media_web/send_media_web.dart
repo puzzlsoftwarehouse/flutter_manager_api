@@ -34,7 +34,6 @@ class SendMediaWeb {
       headers: headers,
       onSendProgress: (progress) => streamProgress?.add(progress),
       onComplete: (response) {
-        debugPrint(response.toString());
         if (completer.isCompleted) return;
         Map<String, dynamic> data = jsonDecode(response);
         if (data['error'] != null) data = data['error'];

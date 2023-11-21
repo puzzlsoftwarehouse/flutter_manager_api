@@ -179,32 +179,3 @@ class RestHelper {
     }
   }
 }
-//
-// class MultipartRequestFile extends MultipartRequest {
-//   final void Function(int bytes, int totalBytes)? onProgress;
-//
-//   MultipartRequestFile(
-//     String method,
-//     Uri url, {
-//     this.onProgress,
-//   }) : super(method, url);
-//
-//   @override
-//   ByteStream finalize() {
-//     final byteStream = super.finalize();
-//     if (onProgress == null) return byteStream;
-//
-//     final total = contentLength;
-//     var bytes = 0;
-//
-//     final t = StreamTransformer.fromHandlers(
-//       handleData: (List<int> data, EventSink<List<int>> sink) {
-//         bytes += data.length;
-//         onProgress?.call(bytes, total);
-//         sink.add(data);
-//       },
-//     );
-//     final stream = byteStream.transform(t);
-//     return ByteStream(stream);
-//   }
-// }
