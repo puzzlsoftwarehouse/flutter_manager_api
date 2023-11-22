@@ -1,6 +1,7 @@
 import 'dart:developer';
 
 import 'package:collection/collection.dart';
+import 'package:dio/dio.dart';
 import 'package:graphql/client.dart';
 import 'package:manager_api/default_api_failures.dart';
 import 'package:manager_api/graphql_read.dart';
@@ -101,8 +102,7 @@ class ManagerAPI {
       }
       Map<String, dynamic>? result = await getCorrectRestRequest(requestResult);
       if (result?['error'] != null) {
-        return Left(getDefaultFailure(
-            result!['error']['code'].toString() + result['error']['message']));
+        return Left(getRestFailure(result!['error'], requestResult.failures));
       }
       return Right(requestResult.returnRequest(result!));
     }
@@ -135,12 +135,17 @@ class ManagerAPI {
       return DefaultAPIFailures.getFailureByCode(
           DefaultAPIFailures.timeoutCode)!;
     }
-
-    Failure? failure = _failures
-        .firstWhereOrNull((failure) => failure.code == exception['code']);
+    String? code;
+    if (exception['code'] is int) {
+      code = exception['code'].toString();
+    } else {
+      code = exception['code'];
+    }
+    Failure? failure =
+        _failures.firstWhereOrNull((failure) => failure.code == code);
 
     return failure ??
-        getDefaultFailure(exception['code'] + exception['message']);
+        getDefaultFailure("${code ?? ""}  ${exception['message']}");
   }
 
   RestRequest convertRestRequest(Map<String, dynamic>? request) =>
@@ -156,6 +161,7 @@ class ManagerAPI {
         parameters: request.parameters ?? {},
         headers: request.headers,
         streamProgress: request.streamProgress,
+        cancelToken: request.cancelToken,
       );
     }
 
@@ -163,7 +169,9 @@ class ManagerAPI {
       return await _restAPI.getRequest(
         url: request.url,
         headers: request.headers,
-        bodyType: request.bodyResponseType,
+        responseType: request.bodyResponseType == RequestResponseBodyType.bytes
+            ? ResponseType.bytes
+            : ResponseType.json,
       );
     }
     if (request.type == RequestRestType.post) {
@@ -171,7 +179,6 @@ class ManagerAPI {
         url: request.url,
         headers: request.headers,
         body: request.body,
-        bodyType: request.bodyResponseType,
       );
     }
 
