@@ -99,14 +99,14 @@ extension FileTypesExtention on FileTypes {
     switch (this) {
       case FileTypes.file:
         return '';
-      case FileTypes.image:
-        return 'image/*';
       case FileTypes.imagePng:
         return 'image/png';
       case FileTypes.imageGif:
         return 'image/gif';
       case FileTypes.imageJpeg:
         return 'image/jpeg';
+      case FileTypes.image:
+        return 'image/*';
       case FileTypes.audio:
         return 'audio/*';
       case FileTypes.video:
