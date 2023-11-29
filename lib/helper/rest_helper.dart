@@ -167,12 +167,14 @@ class RestHelper {
             }
           };
         default:
-          int? exceptionCode = e.response?.data['exception_code'];
+          String exceptionCode =
+              e.response?.data['exception_code'].toString() ?? "";
           String? errorMessage = e.response?.data['detail'];
 
           return _errorServer(
-            code:
-                (exceptionCode ?? (e.response?.statusCode ?? "000")).toString(),
+            code: (int.tryParse(exceptionCode) ??
+                    (e.response?.statusCode ?? "000"))
+                .toString(),
             message: errorMessage ?? e.response?.statusMessage,
           );
       }
