@@ -167,8 +167,8 @@ class RestHelper {
             }
           };
         default:
-          int? exceptionCode = e.response?.data['exception_code'];
-          String? errorMessage = e.response?.data['detail'];
+          int? exceptionCode = e.response?.data?['exception_code'];
+          String? errorMessage = e.response?.data?['detail'];
 
           return _errorServer(
             code:
