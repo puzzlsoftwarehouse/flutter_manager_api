@@ -167,12 +167,21 @@ class RestHelper {
             }
           };
         default:
-          int? exceptionCode = e.response?.data['exception_code'];
-          String? errorMessage = e.response?.data['detail'];
+          String? exceptionCode;
+          String? errorMessage;
+
+          if (e.response?.data.runtimeType == Map) {
+            exceptionCode = e.response?.data?['exception_code'].toString();
+            errorMessage = e.response?.data?['detail'];
+          } else {
+            exceptionCode = "000";
+            errorMessage = e.response?.data;
+          }
 
           return _errorServer(
             code:
-                (exceptionCode ?? (e.response?.statusCode ?? "000")).toString(),
+                (exceptionCode?.toString() ?? (e.response?.statusCode ?? "000"))
+                    .toString(),
             message: errorMessage ?? e.response?.statusMessage,
           );
       }
