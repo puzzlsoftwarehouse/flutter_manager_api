@@ -170,12 +170,14 @@ class RestHelper {
           String? exceptionCode;
           String? errorMessage;
 
-          if (e.response?.data.runtimeType == Map) {
-            exceptionCode = e.response?.data?['exception_code'].toString();
-            errorMessage = e.response?.data?['detail'];
-          } else {
+          if (e.response?.data.runtimeType == String) {
             exceptionCode = "000";
             errorMessage = e.response?.data;
+          } else {
+            print(e.response?.data);
+
+            exceptionCode = e.response?.data?['exception_code'].toString();
+            errorMessage = e.response?.data?['detail'];
           }
 
           return _errorServer(
