@@ -170,12 +170,12 @@ class RestHelper {
           String? exceptionCode;
           String? errorMessage;
 
+          debugPrint(e.response?.data);
+
           if (e.response?.data.runtimeType == String) {
             exceptionCode = "000";
             errorMessage = e.response?.data;
           } else {
-            print(e.response?.data);
-
             exceptionCode = e.response?.data?['exception_code'].toString();
             errorMessage = e.response?.data?['detail'];
           }
