@@ -9,6 +9,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
   final RequestGraphQLType type;
   final String? token;
   final Map<String, dynamic> variables;
+  final Duration timeOutDuration;
 
   GraphQLRequest({
     required this.path,
@@ -17,6 +18,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
     required super.returnRequest,
     this.token,
     this.variables = const {},
+    this.timeOutDuration = const Duration(seconds: 15),
     List<Failure> failures = const <Failure>[],
     super.skipRequest,
   });
@@ -27,6 +29,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
         token: json['token'],
         type: json['type'],
         variables: json['variables'],
+        timeOutDuration: Duration(seconds: json['timeOutDuration']),
         failures: json['failures'],
         returnRequest: json['returnRequest'],
         skipRequest: json['skipRequest'],
@@ -39,6 +42,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
         "token": token,
         "type": type,
         "variables": variables,
+        "timeOutDuration": timeOutDuration.inSeconds,
         "failures": failures,
         "returnRequest": returnRequest,
         "skipRequest": skipRequest,
