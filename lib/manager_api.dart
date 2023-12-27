@@ -68,22 +68,26 @@ class ManagerAPI {
   Future<QueryResult<Object?>> getCorrectGraphQLRequest(
       GraphQLRequest request) async {
     log(request.variables.toString());
+
     String query = await GraphQLRead.get(
       path: request.path,
       type: request.type,
       requestName: request.name,
     );
+
     if (request.type == RequestGraphQLType.mutation) {
       return await _api.mutation(
         data: query,
         token: request.token,
         variables: request.variables,
+        durationTimeOut: request.timeOutDuration,
       );
     }
     return await _api.query(
       data: query,
       token: request.token,
       variables: request.variables,
+      durationTimeOut: request.timeOutDuration,
     );
   }
 
