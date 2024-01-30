@@ -24,7 +24,7 @@ class GraphQLRead {
     for (String line in fileResult.split("\n")) {
       if (result.isNotEmpty) break;
 
-      RegExp regex = RegExp("$stringType $requestName" r'(?=[({])');
+      RegExp regex = RegExp("$stringType $requestName\\s*" r'(?=[({])');
       if (regex.hasMatch(line)) {
         firstLine = true;
       }
