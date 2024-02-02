@@ -1,6 +1,6 @@
 name: manager_api
 description: Manager GraphQL and Rest
-version: 0.0.7
+version: 0.0.8
 publish_to: 'none'
 homepage:
 
