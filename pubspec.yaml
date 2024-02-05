@@ -1,6 +1,6 @@
 name: manager_api
 description: Manager GraphQL and Rest
-version: 0.0.7
+version: 0.0.8
 publish_to: 'none'
 homepage:
 
@@ -16,7 +16,6 @@ dependencies:
   graphql: ^5.0.1
   collection: ^1.17.1
   gql: ^1.0.0
-  open_file: ^3.3.2
   rxdart: ^0.27.7
   http_parser: ^4.0.2
   dio: ^5.3.3
