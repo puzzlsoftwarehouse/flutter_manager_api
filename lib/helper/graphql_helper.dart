@@ -80,8 +80,9 @@ class GraphQLHelper implements IGraphQLHelper {
 
       final QueryOptions options = QueryOptions(
         document: gqlPersonalize(data),
-        fetchPolicy: FetchPolicy.networkOnly,
         variables: variables,
+        fetchPolicy: FetchPolicy.networkOnly,
+        cacheRereadPolicy: CacheRereadPolicy.ignoreAll,
       );
       final QueryResult result = await client.query(options).timeout(
             durationTimeOut ?? _durationTimeOut,
