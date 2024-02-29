@@ -34,6 +34,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
         failures: json['failures'],
         returnRequest: json['returnRequest'],
         skipRequest: json['skipRequest'],
+        cancelableOperation: json['cancelableOperation'],
       );
 
   @override
@@ -47,5 +48,6 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
         "failures": failures,
         "returnRequest": returnRequest,
         "skipRequest": skipRequest,
+        "cancelableOperation": cancelableOperation,
       };
 }
