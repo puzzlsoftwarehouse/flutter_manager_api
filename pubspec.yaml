@@ -21,6 +21,7 @@ dependencies:
   dio: ^5.3.3
   universal_html: ^2.2.4
   cross_file: ^0.3.3+6
+  async: ^2.11.0
 
 dev_dependencies:
   flutter_test:

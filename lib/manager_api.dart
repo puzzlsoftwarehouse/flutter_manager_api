@@ -1,5 +1,6 @@
 import 'dart:developer';
 
+import 'package:async/async.dart';
 import 'package:collection/collection.dart';
 import 'package:dio/dio.dart';
 import 'package:graphql/client.dart';
@@ -117,9 +118,21 @@ class ManagerAPI {
       return requestResult.skipRequest!.result;
     }
 
-    QueryResult<Object?> result = await getCorrectGraphQLRequest(requestResult);
+    CancelableOperation<QueryResult<Object?>> requestOperation =
+        CancelableOperation.fromFuture(getCorrectGraphQLRequest(requestResult),
+            onCancel: () {});
 
-    if (!result.hasException) {
+    requestResult.cancelableOperation?.asStream().listen((event) {
+      if (requestResult.cancelableOperation!.isCanceled) {
+        requestOperation.cancel();
+      }
+    });
+
+    QueryResult<Object?>? result = await requestOperation.valueOrCancellation();
+    if (requestOperation.isCanceled) {
+      return Left(Failure(code: 'canceled'));
+    }
+    if (!result!.hasException) {
       return Right(requestResult.returnRequest(result.data!));
     }
 

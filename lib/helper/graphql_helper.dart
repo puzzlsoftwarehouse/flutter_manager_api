@@ -1,8 +1,7 @@
 import 'package:graphql/client.dart';
-
 import 'package:gql/ast.dart';
-
 import 'package:gql/language.dart';
+import 'package:async/async.dart' show CancelableOperation;
 
 DocumentNode gqlPersonalize(String document) => transform(
       parseString(document),

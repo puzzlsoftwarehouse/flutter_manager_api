@@ -1,3 +1,4 @@
+import 'package:async/async.dart';
 import 'package:manager_api/default_api_failures.dart';
 import 'package:manager_api/models/failure/failure.dart';
 import 'package:manager_api/models/resultlr/resultlr.dart';
@@ -9,12 +10,14 @@ class RequestAPI<ResultLR> {
   final ReturnRequest returnRequest;
   final List<Failure> failures;
   final SkipRequest? skipRequest;
+  final CancelableOperation? cancelableOperation;
 
   RequestAPI({
     required this.name,
     required this.returnRequest,
     List<Failure> failures = const <Failure>[],
     this.skipRequest,
+    this.cancelableOperation,
   }) : failures = DefaultAPIFailures.failures..addAll(failures);
 
   Map<String, dynamic> get toJson => {};
