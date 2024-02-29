@@ -21,6 +21,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
     this.timeOutDuration = const Duration(seconds: 15),
     List<Failure> failures = const <Failure>[],
     super.skipRequest,
+    super.cancelableOperation,
   });
 
   factory GraphQLRequest.fromJson(Map<String, dynamic> json) => GraphQLRequest(
