@@ -1,7 +1,7 @@
 import 'package:manager_api/models/failure/failure.dart';
 import 'package:manager_api/requests/request_api.dart';
 
-enum RequestGraphQLType { query, mutation, subscription }
+enum RequestGraphQLType { query, mutation, mutationCancelable, subscription }
 
 class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
   /// directory where is the file .graphql

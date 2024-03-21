@@ -17,7 +17,6 @@ import 'package:manager_api/requests/rest_request.dart';
 DefaultFailures managerDefaultAPIFailures = DefaultFailures();
 
 class ManagerAPI {
-  final GraphQLHelper _api = GraphQLHelper();
   final RestHelper _restAPI = RestHelper();
 
   List<Failure> _failures = <Failure>[];
@@ -77,6 +76,7 @@ class ManagerAPI {
     );
 
     if (request.type == RequestGraphQLType.mutation) {
+      GraphQLHelper _api = GraphQLHelper();
       return await _api.mutation(
         data: query,
         token: request.token,
@@ -84,6 +84,8 @@ class ManagerAPI {
         durationTimeOut: request.timeOutDuration,
       );
     }
+    GraphQLHelper _api = GraphQLHelper();
+
     return await _api.query(
       data: query,
       token: request.token,
@@ -94,6 +96,29 @@ class ManagerAPI {
 
   GraphQLRequest convertGraphQLRequest(Map<String, dynamic>? request) =>
       GraphQLRequest.fromJson(request ?? const <String, dynamic>{});
+
+  CancelableOperation<ResultLR<Failure, dynamic>> requestCancelable(
+      {Map<String, dynamic>? request, required String named}) {
+    GraphQLRequest requestResult = convertGraphQLRequest(request);
+    if (requestResult.skipRequest != null) {
+      log("REQUEST SKIPPED: ${requestResult.name}");
+      return CancelableOperation.fromFuture(requestResult.skipRequest!.result);
+    }
+    return CancelableOperation.fromFuture(
+        () async {
+          QueryResult<Object?> result =
+              await getCorrectGraphQLRequest(requestResult);
+
+          if (!result.hasException) {
+            return Right(requestResult.returnRequest(result.data!));
+          }
+
+          return Left(
+              getGraphQLFailure(result.exception, requestResult.failures));
+        } as Future<ResultLR<Failure, dynamic>>, onCancel: () {
+      return Left(getDefaultFailure("Cancelado"));
+    });
+  }
 
   Future<ResultLR<Failure, dynamic>> request({
     Map<String, dynamic>? request,
@@ -118,21 +143,9 @@ class ManagerAPI {
       return requestResult.skipRequest!.result;
     }
 
-    CancelableOperation<QueryResult<Object?>> requestOperation =
-        CancelableOperation.fromFuture(getCorrectGraphQLRequest(requestResult),
-            onCancel: () {});
+    QueryResult<Object?> result = await getCorrectGraphQLRequest(requestResult);
 
-    requestResult.cancelableOperation?.asStream().listen((event) {
-      if (requestResult.cancelableOperation!.isCanceled) {
-        requestOperation.cancel();
-      }
-    });
-
-    QueryResult<Object?>? result = await requestOperation.valueOrCancellation();
-    if (requestOperation.isCanceled) {
-      return Left(Failure(code: 'canceled'));
-    }
-    if (!result!.hasException) {
+    if (!result.hasException) {
       return Right(requestResult.returnRequest(result.data!));
     }
 

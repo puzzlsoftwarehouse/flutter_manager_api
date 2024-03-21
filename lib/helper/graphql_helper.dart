@@ -29,15 +29,30 @@ class GraphQLHelper implements IGraphQLHelper {
   }
 
   @override
+  CancelableOperation<QueryResult> cancelableMutation({
+    required String data,
+    String? token,
+    Map<String, dynamic> variables = const {},
+    Duration? durationTimeOut,
+  }) =>
+      CancelableOperation.fromFuture(
+        mutation(
+          data: data,
+          token: token,
+          variables: variables,
+          durationTimeOut: durationTimeOut,
+        ),
+        onCancel: () {},
+      );
+
+  @override
   Future<QueryResult> mutation({
     required String data,
     String? token,
     Map<String, dynamic> variables = const {},
     Duration? durationTimeOut,
   }) async {
-    final GraphQLClient client = getGraphQLClient(
-      token: token,
-    );
+    final GraphQLClient client = getGraphQLClient(token: token);
 
     final MutationOptions options = MutationOptions(
       document: gqlPersonalize(data),
@@ -135,5 +150,12 @@ abstract class IGraphQLHelper {
   Future<QueryResult> mutation({
     required String data,
     String? token,
+  });
+
+  CancelableOperation<QueryResult> cancelableMutation({
+    required String data,
+    String? token,
+    Map<String, dynamic> variables,
+    Duration? durationTimeOut,
   });
 }
