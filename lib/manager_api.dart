@@ -31,7 +31,8 @@ class ManagerAPI {
 
   Failure getDefaultFailure(String? text) => Failure(
         code: "000",
-        message: managerDefaultAPIFailures.unknownError,
+        title: managerDefaultAPIFailures.unknownError.title,
+        message: managerDefaultAPIFailures.unknownError.message,
         log: text,
       );
 

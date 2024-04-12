@@ -1,18 +1,45 @@
+import 'package:manager_api/models/failure/failure.dart';
+
 class DefaultFailures {
-  final String unknownError;
-  final String noConnectionError;
-  final String timeoutError;
-  final String notFoundError;
-  final String serverError;
-  final String cancelError;
+  final FailureDefault unknownError;
+  final FailureDefault noConnectionError;
+  final FailureDefault timeoutError;
+  final FailureDefault notFoundError;
+  final FailureDefault serverError;
+  final FailureDefault cancelError;
 
   DefaultFailures({
-    this.unknownError = "Unknown error, contact our support",
-    this.noConnectionError = "No Internet access!",
-    this.timeoutError = "The connection has timed out!",
-    this.notFoundError = "What you are looking for was not found",
-    this.serverError =
-        "Sorry, we had problems connecting to servers, try again",
-    this.cancelError = "Request canceled",
+    FailureDefault? unknownError,
+    FailureDefault? noConnectionError,
+    FailureDefault? timeoutError,
+    FailureDefault? notFoundError,
+    FailureDefault? serverError,
+    FailureDefault? cancelError,
+  })  : unknownError = unknownError ??
+            FailureDefault(
+                title: '', message: "Unknown error, contact our support"),
+        noConnectionError = noConnectionError ??
+            FailureDefault(title: '', message: "No Internet access!"),
+        timeoutError = timeoutError ??
+            FailureDefault(title: '', message: "The connection has timed out!"),
+        notFoundError = notFoundError ??
+            FailureDefault(
+                title: '', message: "What you are looking for was not found"),
+        serverError = serverError ??
+            FailureDefault(
+                title: '',
+                message:
+                    "Sorry, we had problems connecting to servers, try again"),
+        cancelError = cancelError ??
+            FailureDefault(title: '', message: "Request canceled");
+}
+
+class FailureDefault {
+  final String title;
+  final String message;
+
+  FailureDefault({
+    required this.title,
+    required this.message,
   });
 }

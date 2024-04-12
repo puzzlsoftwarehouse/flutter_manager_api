@@ -6,11 +6,13 @@ class DefaultAPIFailures {
   DefaultAPIFailures._();
   static Failure _failure(
     String code, {
+    String? title,
     required String message,
     String? log,
   }) =>
       Failure(
         code: code,
+        title: title,
         message: message,
         log: log,
       );
@@ -24,16 +26,19 @@ class DefaultAPIFailures {
   static const String serverErrorCode = 'server';
   static const String notFoundErrorCode = 'notFound';
   static const String cancelErrorCode = 'cancel';
-  static String unknownErrorMessage = managerDefaultAPIFailures.unknownError;
+  static String unknownErrorMessage =
+      managerDefaultAPIFailures.unknownError.message;
 
   static List<Failure> get failures => [
         _failure(
           timeoutCode,
-          message: managerDefaultAPIFailures.timeoutError,
+          title: managerDefaultAPIFailures.timeoutError.title,
+          message: managerDefaultAPIFailures.timeoutError.message,
         ),
         _failure(
           noConnectionCode,
-          message: managerDefaultAPIFailures.noConnectionError,
+          title: managerDefaultAPIFailures.noConnectionError.title,
+          message: managerDefaultAPIFailures.noConnectionError.message,
         ),
         _failure(
           unknownErrorCode,
@@ -41,15 +46,18 @@ class DefaultAPIFailures {
         ),
         _failure(
           notFoundErrorCode,
-          message: managerDefaultAPIFailures.notFoundError,
+          title: managerDefaultAPIFailures.notFoundError.title,
+          message: managerDefaultAPIFailures.notFoundError.message,
         ),
         _failure(
           serverErrorCode,
-          message: managerDefaultAPIFailures.serverError,
+          title: managerDefaultAPIFailures.serverError.title,
+          message: managerDefaultAPIFailures.serverError.message,
         ),
         _failure(
           cancelErrorCode,
-          message: managerDefaultAPIFailures.cancelError,
+          title: managerDefaultAPIFailures.cancelError.title,
+          message: managerDefaultAPIFailures.cancelError.message,
         ),
       ];
 
