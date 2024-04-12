@@ -35,6 +35,7 @@ class GraphQLHelper implements IGraphQLHelper {
     String? token,
     Map<String, dynamic> variables = const {},
     Duration? durationTimeOut,
+    ErrorPolicy? errorPolicy,
   }) async {
     final GraphQLClient client = getGraphQLClient(
       token: token,
@@ -44,6 +45,7 @@ class GraphQLHelper implements IGraphQLHelper {
       document: gqlPersonalize(data),
       variables: variables,
       fetchPolicy: FetchPolicy.networkOnly,
+      errorPolicy: errorPolicy,
     );
 
     try {
@@ -74,6 +76,7 @@ class GraphQLHelper implements IGraphQLHelper {
     String? token,
     Map<String, dynamic> variables = const {},
     Duration? durationTimeOut,
+    ErrorPolicy? errorPolicy,
   }) async {
     try {
       final GraphQLClient client = getGraphQLClient(token: token);
@@ -83,6 +86,7 @@ class GraphQLHelper implements IGraphQLHelper {
         variables: variables,
         fetchPolicy: FetchPolicy.networkOnly,
         cacheRereadPolicy: CacheRereadPolicy.ignoreAll,
+        errorPolicy: errorPolicy,
       );
       final QueryResult result = await client.query(options).timeout(
             durationTimeOut ?? _durationTimeOut,
