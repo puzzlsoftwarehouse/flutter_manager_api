@@ -67,7 +67,7 @@ class ManagerAPI {
 
   Future<QueryResult<Object?>> getCorrectGraphQLRequest(
       GraphQLRequest request) async {
-    log(request.variables.toString());
+    log("${request.variables} - ${request.name}");
 
     String query = await GraphQLRead.get(
       path: request.path,
@@ -81,13 +81,16 @@ class ManagerAPI {
         token: request.token,
         variables: request.variables,
         durationTimeOut: request.timeOutDuration,
+        errorPolicy: request.errorPolicy,
       );
     }
+
     return await _api.query(
       data: query,
       token: request.token,
       variables: request.variables,
       durationTimeOut: request.timeOutDuration,
+      errorPolicy: request.errorPolicy,
     );
   }
 
@@ -95,8 +98,9 @@ class ManagerAPI {
       GraphQLRequest.fromJson(request ?? const <String, dynamic>{});
 
   Future<ResultLR<Failure, dynamic>> request({
-    Map<String, dynamic>? request,
     required String named,
+    Map<String, dynamic>? request,
+    int? ignoreCode,
   }) async {
     if (request?['typeAPI'] == 'rest') {
       RestRequest requestResult = convertRestRequest(request);
@@ -117,10 +121,23 @@ class ManagerAPI {
       return requestResult.skipRequest!.result;
     }
 
+    if (ignoreCode != null) {
+      requestResult = requestResult.copyWith(errorPolicy: ErrorPolicy.ignore);
+    }
+
     QueryResult<Object?> result = await getCorrectGraphQLRequest(requestResult);
 
     if (!result.hasException) {
-      return Right(requestResult.returnRequest(result.data!));
+      dynamic returned = await requestResult.returnRequest(result.data!);
+      return Right(returned);
+    }
+
+    if (ignoreCode != null) {
+      String? exceptionCode = getException(result.exception?.graphqlErrors);
+      if (exceptionCode == ignoreCode.toString()) {
+        dynamic returned = await requestResult.returnRequest(result.data!);
+        return Right(returned);
+      }
     }
 
     return Left(getGraphQLFailure(result.exception, requestResult.failures));
@@ -157,7 +174,8 @@ class ManagerAPI {
 
   Future<Map<String, dynamic>?> getCorrectRestRequest(
       RestRequest request) async {
-    log(request.body.toString());
+    log("${request.body} - ${request.name}");
+
     if (request.bodyType == BodyType.bytes) {
       return await _restAPI.sendMedia(
         file: request.body!['file'],
