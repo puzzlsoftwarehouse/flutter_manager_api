@@ -42,6 +42,7 @@ class DefaultAPIFailures {
         ),
         _failure(
           unknownErrorCode,
+          title: managerDefaultAPIFailures.unknownError.title,
           message: unknownErrorMessage,
         ),
         _failure(
