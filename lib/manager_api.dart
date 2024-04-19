@@ -25,8 +25,9 @@ class ManagerAPI {
     List<Failure> failures = const <Failure>[],
     required DefaultFailures defaultFailures,
   }) {
-    _failures = DefaultAPIFailures.failures..addAll(failures);
     managerDefaultAPIFailures = defaultFailures;
+
+    _failures = DefaultAPIFailures.failures..addAll(failures);
   }
 
   Failure getDefaultFailure(String? text) => Failure(
@@ -47,7 +48,14 @@ class ManagerAPI {
   Failure getGraphQLFailure(
       OperationException? exception, List<Failure> failures) {
     log("GraphQL Error", error: exception.toString());
-    _failures.addAll(failures);
+    for (Failure failure in failures) {
+      if (_failures.any((element) => element.code == failure.code)) {
+        _failures.removeWhere((element) => element.code == failure.code);
+        _failures.add(failure);
+        continue;
+      }
+      _failures.add(failure);
+    }
 
     if (exception?.linkException != null) {
       return DefaultAPIFailures.getFailureByCode(
