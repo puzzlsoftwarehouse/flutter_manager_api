@@ -121,30 +121,51 @@ class ManagerAPI {
       return requestResult.skipRequest!.result;
     }
 
+    return await identifyPermissionForRequest(
+      requestResult: requestResult,
+      ignoreCode: ignoreCode,
+    );
+  }
+
+  Future<ResultLR<Failure, dynamic>> identifyPermissionForRequest({
+    required GraphQLRequest<dynamic> requestResult,
+    int? ignoreCode,
+  }) async {
     if (ignoreCode != null) {
-      requestResult = requestResult.copyWith(errorPolicy: ErrorPolicy.ignore);
+      requestResult = requestResult.copyWith(errorPolicy: ErrorPolicy.all);
     }
 
     QueryResult<Object?> result = await getCorrectGraphQLRequest(requestResult);
 
-    if (!result.hasException) {
-      dynamic returned = await requestResult.returnRequest(result.data!);
-      return Right(returned);
+    if (result.hasException && ignoreCode == null) {
+      return Left(getGraphQLFailure(result.exception, requestResult.failures));
     }
 
-    if (ignoreCode != null) {
+    if (result.hasException && ignoreCode != null && result.data == null) {
+      return Left(getGraphQLFailure(result.exception, requestResult.failures));
+    }
+
+    if (result.hasException && ignoreCode != null && result.data != null) {
       String? exceptionCode = getException(result.exception?.graphqlErrors);
+
       if (exceptionCode == ignoreCode.toString()) {
         dynamic returned = await requestResult.returnRequest(result.data!);
         return Right(returned);
       }
     }
 
+    if (result.data != null && !result.hasException) {
+      dynamic returned = await requestResult.returnRequest(result.data!);
+      return Right(returned);
+    }
+
     return Left(getGraphQLFailure(result.exception, requestResult.failures));
   }
 
   Failure getRestFailure(
-      Map<String, dynamic> exception, List<Failure> failures) {
+    Map<String, dynamic> exception,
+    List<Failure> failures,
+  ) {
     log("Rest Request Error", error: exception.toString());
     _failures.addAll(failures);
 
@@ -152,16 +173,20 @@ class ManagerAPI {
       return DefaultAPIFailures.getFailureByCode(
           DefaultAPIFailures.noConnectionCode)!;
     }
+
     if (exception['type'] == 'timeout') {
       return DefaultAPIFailures.getFailureByCode(
           DefaultAPIFailures.timeoutCode)!;
     }
+
     String? code;
+
     if (exception['code'] is int) {
       code = exception['code'].toString();
     } else {
       code = exception['code'];
     }
+
     Failure? failure =
         _failures.firstWhereOrNull((failure) => failure.code == code);
 

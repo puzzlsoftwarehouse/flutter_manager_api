@@ -88,6 +88,7 @@ class GraphQLHelper implements IGraphQLHelper {
         cacheRereadPolicy: CacheRereadPolicy.ignoreAll,
         errorPolicy: errorPolicy,
       );
+
       final QueryResult result = await client.query(options).timeout(
             durationTimeOut ?? _durationTimeOut,
             onTimeout: () async => _timeOutAPI(),

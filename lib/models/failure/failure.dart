@@ -3,6 +3,7 @@ class Failure {
   final String title;
   final String message;
   final String? _log;
+
   Failure({
     required this.code,
     String? title,
