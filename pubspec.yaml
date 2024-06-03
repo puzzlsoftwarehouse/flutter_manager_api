@@ -1,11 +1,11 @@
 name: manager_api
 description: Manager GraphQL and Rest
-version: 0.0.10
+version: 0.0.11
 publish_to: 'none'
 homepage:
 
 environment:
-  sdk: '>=3.1.2 <4.0.0'
+  sdk: '>=3.4.1 <4.0.0'
   flutter: ">=1.17.0"
 
 dependencies:
@@ -13,18 +13,18 @@ dependencies:
     sdk: flutter
 
   http: ^1.1.0
-  graphql: ^5.1.3
+  graphql: ^5.2.0-beta.8
   collection: ^1.17.1
-  gql: ^1.0.1-alpha+1708195451519
+  gql: ^1.0.1-alpha+1715931674451
   rxdart: ^0.27.7
   http_parser: ^4.0.2
-  dio: ^5.3.3
+  dio: ^5.4.3+1
   universal_html: ^2.2.4
   cross_file: ^0.3.3+6
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.2
+  flutter_lints: ^4.0.0
 
 flutter:

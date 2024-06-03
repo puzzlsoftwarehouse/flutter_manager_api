@@ -15,16 +15,21 @@ import 'package:manager_api/requests/rest_request.dart';
 
 DefaultFailures managerDefaultAPIFailures = DefaultFailures();
 
+enum ManagerHeader { apiUrl, tokenProject }
+
 class ManagerAPI {
-  final GraphQLHelper _api = GraphQLHelper();
+  late GraphQLHelper _api;
   final RestHelper _restAPI = RestHelper();
 
   List<Failure> _failures = <Failure>[];
 
   ManagerAPI({
-    List<Failure> failures = const <Failure>[],
     required DefaultFailures defaultFailures,
+    List<Failure> failures = const <Failure>[],
+    Map<ManagerHeader, String>? optionsHeader,
   }) {
+    _api = GraphQLHelper(optionsHeader);
+
     _failures = DefaultAPIFailures.failures..addAll(failures);
     managerDefaultAPIFailures = defaultFailures;
   }

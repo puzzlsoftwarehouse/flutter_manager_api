@@ -3,22 +3,27 @@ import 'package:graphql/client.dart';
 import 'package:gql/ast.dart';
 
 import 'package:gql/language.dart';
-
-DocumentNode gqlPersonalize(String document) => transform(
-      parseString(document),
-      [],
-    );
+import 'package:manager_api/manager_api.dart';
 
 class GraphQLHelper implements IGraphQLHelper {
+  Map<ManagerHeader, String>? options;
+  GraphQLHelper(this.options);
+
+  DocumentNode gqlPersonalize(String document) =>
+      transform(parseString(document), []);
+
   Duration get _durationTimeOut => const Duration(seconds: 15);
 
   GraphQLClient getGraphQLClient({String? token}) {
+    String? baseApiUrl = options?[ManagerHeader.apiUrl];
+    String? baseToken = options?[ManagerHeader.tokenProject];
+
     final Link link = HttpLink(
-      "${const String.fromEnvironment("BASEAPIURL")}/graphql",
+      "${baseApiUrl ?? const String.fromEnvironment("BASEAPIURL")}/graphql",
       defaultHeaders: token != null
           ? {
               "Authorization":
-                  "${const String.fromEnvironment("BASETOKENPROJECT")}$token",
+                  "${baseToken ?? const String.fromEnvironment("BASETOKENPROJECT")}$token",
             }
           : {},
     );
