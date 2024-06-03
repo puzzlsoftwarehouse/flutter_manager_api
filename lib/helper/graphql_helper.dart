@@ -4,24 +4,34 @@ import 'package:gql/ast.dart';
 
 import 'package:gql/language.dart';
 
-DocumentNode gqlPersonalize(String document) => transform(
-      parseString(document),
-      [],
-    );
-
 class GraphQLHelper implements IGraphQLHelper {
+  DocumentNode gqlPersonalize(String document) =>
+      transform(parseString(document), []);
+
   Duration get _durationTimeOut => const Duration(seconds: 15);
 
-  GraphQLClient getGraphQLClient({String? token}) {
-    final Link link = HttpLink(
-      "${const String.fromEnvironment("BASEAPIURL")}/graphql",
-      defaultHeaders: token != null
-          ? {
-              "Authorization":
-                  "${const String.fromEnvironment("BASETOKENPROJECT")}$token",
-            }
-          : {},
-    );
+  GraphQLClient getGraphQLClient({
+    String? token,
+    Map<String, String>? headers,
+  }) {
+    late Link link;
+
+    if (headers == null) {
+      link = HttpLink(
+        "${const String.fromEnvironment("BASEAPIURL")}/graphql",
+        defaultHeaders: token != null
+            ? {
+                "Authorization":
+                    "${const String.fromEnvironment("BASETOKENPROJECT")}$token",
+              }
+            : {},
+      );
+    } else {
+      link = HttpLink(
+        headers['apiUrl']!,
+        defaultHeaders: headers,
+      );
+    }
 
     return GraphQLClient(
       cache: GraphQLCache(),
@@ -33,12 +43,14 @@ class GraphQLHelper implements IGraphQLHelper {
   Future<QueryResult> mutation({
     required String data,
     String? token,
+    Map<String, String>? headers,
     Map<String, dynamic> variables = const {},
     Duration? durationTimeOut,
     ErrorPolicy? errorPolicy,
   }) async {
     final GraphQLClient client = getGraphQLClient(
       token: token,
+      headers: headers,
     );
 
     final MutationOptions options = MutationOptions(
@@ -74,12 +86,16 @@ class GraphQLHelper implements IGraphQLHelper {
   Future<QueryResult> query({
     required String data,
     String? token,
+    Map<String, String>? headers,
     Map<String, dynamic> variables = const {},
     Duration? durationTimeOut,
     ErrorPolicy? errorPolicy,
   }) async {
     try {
-      final GraphQLClient client = getGraphQLClient(token: token);
+      final GraphQLClient client = getGraphQLClient(
+        token: token,
+        headers: headers,
+      );
 
       final QueryOptions options = QueryOptions(
         document: gqlPersonalize(data),
@@ -120,6 +136,7 @@ class GraphQLHelper implements IGraphQLHelper {
           operationName: '',
         ),
       );
+
   QueryResult _noConnectionAPI() => QueryResult(
         source: QueryResultSource.network,
         exception: OperationException(
