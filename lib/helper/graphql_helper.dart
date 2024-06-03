@@ -15,7 +15,7 @@ class GraphQLHelper implements IGraphQLHelper {
     Map<String, String>? headers,
   }) {
     if (headers == null) {
-      throw "header is null";
+      throw "Headers is null ";
     }
 
     final Link link = HttpLink(
