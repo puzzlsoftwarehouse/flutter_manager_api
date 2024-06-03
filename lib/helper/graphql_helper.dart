@@ -14,14 +14,24 @@ class GraphQLHelper implements IGraphQLHelper {
     String? token,
     Map<String, String>? headers,
   }) {
-    if (headers == null) {
-      throw "Headers is null ";
-    }
+    late Link link;
 
-    final Link link = HttpLink(
-      headers['apiUrl']!,
-      defaultHeaders: headers,
-    );
+    if (headers == null) {
+      link = HttpLink(
+        "${const String.fromEnvironment("BASEAPIURL")}/graphql",
+        defaultHeaders: token != null
+            ? {
+                "Authorization":
+                    "${const String.fromEnvironment("BASETOKENPROJECT")}$token",
+              }
+            : {},
+      );
+    } else {
+      link = HttpLink(
+        headers['apiUrl']!,
+        defaultHeaders: headers,
+      );
+    }
 
     return GraphQLClient(
       cache: GraphQLCache(),
@@ -126,6 +136,7 @@ class GraphQLHelper implements IGraphQLHelper {
           operationName: '',
         ),
       );
+
   QueryResult _noConnectionAPI() => QueryResult(
         source: QueryResultSource.network,
         exception: OperationException(
