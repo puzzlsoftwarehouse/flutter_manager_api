@@ -14,22 +14,12 @@ class GraphQLHelper implements IGraphQLHelper {
     String? token,
     Map<String, String>? headers,
   }) {
-    // String? baseApiUrl = options?[ManagerHeader.apiUrl];
-    // String? baseToken = options?[ManagerHeader.tokenProject];
-
     if (headers == null) {
       throw "header is null";
     }
 
     final Link link = HttpLink(
       headers['apiUrl']!,
-      // "${baseApiUrl ?? const String.fromEnvironment("BASEAPIURL")}/graphql",
-      // defaultHeaders: token != null
-      //     ? {
-      //         "Authorization":
-      //             "${baseToken ?? const String.fromEnvironment("BASETOKENPROJECT")}$token",
-      //       }
-      //     : {},
       defaultHeaders: headers,
     );
 
