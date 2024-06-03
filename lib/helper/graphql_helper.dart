@@ -3,29 +3,34 @@ import 'package:graphql/client.dart';
 import 'package:gql/ast.dart';
 
 import 'package:gql/language.dart';
-import 'package:manager_api/manager_api.dart';
 
 class GraphQLHelper implements IGraphQLHelper {
-  Map<ManagerHeader, String>? options;
-  GraphQLHelper(this.options);
-
   DocumentNode gqlPersonalize(String document) =>
       transform(parseString(document), []);
 
   Duration get _durationTimeOut => const Duration(seconds: 15);
 
-  GraphQLClient getGraphQLClient({String? token}) {
-    String? baseApiUrl = options?[ManagerHeader.apiUrl];
-    String? baseToken = options?[ManagerHeader.tokenProject];
+  GraphQLClient getGraphQLClient({
+    String? token,
+    Map<String, String>? headers,
+  }) {
+    // String? baseApiUrl = options?[ManagerHeader.apiUrl];
+    // String? baseToken = options?[ManagerHeader.tokenProject];
+
+    if (headers == null) {
+      throw "header is null";
+    }
 
     final Link link = HttpLink(
-      "${baseApiUrl ?? const String.fromEnvironment("BASEAPIURL")}/graphql",
-      defaultHeaders: token != null
-          ? {
-              "Authorization":
-                  "${baseToken ?? const String.fromEnvironment("BASETOKENPROJECT")}$token",
-            }
-          : {},
+      headers['apiUrl']!,
+      // "${baseApiUrl ?? const String.fromEnvironment("BASEAPIURL")}/graphql",
+      // defaultHeaders: token != null
+      //     ? {
+      //         "Authorization":
+      //             "${baseToken ?? const String.fromEnvironment("BASETOKENPROJECT")}$token",
+      //       }
+      //     : {},
+      defaultHeaders: headers,
     );
 
     return GraphQLClient(
@@ -38,12 +43,14 @@ class GraphQLHelper implements IGraphQLHelper {
   Future<QueryResult> mutation({
     required String data,
     String? token,
+    Map<String, String>? headers,
     Map<String, dynamic> variables = const {},
     Duration? durationTimeOut,
     ErrorPolicy? errorPolicy,
   }) async {
     final GraphQLClient client = getGraphQLClient(
       token: token,
+      headers: headers,
     );
 
     final MutationOptions options = MutationOptions(
@@ -79,12 +86,16 @@ class GraphQLHelper implements IGraphQLHelper {
   Future<QueryResult> query({
     required String data,
     String? token,
+    Map<String, String>? headers,
     Map<String, dynamic> variables = const {},
     Duration? durationTimeOut,
     ErrorPolicy? errorPolicy,
   }) async {
     try {
-      final GraphQLClient client = getGraphQLClient(token: token);
+      final GraphQLClient client = getGraphQLClient(
+        token: token,
+        headers: headers,
+      );
 
       final QueryOptions options = QueryOptions(
         document: gqlPersonalize(data),

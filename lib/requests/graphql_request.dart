@@ -9,6 +9,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
   final String path;
   final RequestGraphQLType type;
   final String? token;
+  final Map<String, String>? headers;
   final Map<String, dynamic> variables;
   final Duration timeOutDuration;
   final ErrorPolicy? errorPolicy;
@@ -19,6 +20,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
     required this.type,
     required super.returnRequest,
     this.token,
+    this.headers,
     this.variables = const {},
     this.timeOutDuration = const Duration(seconds: 15),
     this.errorPolicy,
@@ -26,11 +28,12 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
     super.skipRequest,
   });
 
-  copyWith({
+  GraphQLRequest copyWith({
     String? path,
     String? name,
     String? token,
     RequestGraphQLType? type,
+    Map<String, String>? headers,
     Map<String, dynamic>? variables,
     Duration? timeOutDuration,
     ErrorPolicy? errorPolicy,
@@ -41,6 +44,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
       name: name ?? super.name,
       token: token ?? this.token,
       type: type ?? this.type,
+      headers: headers ?? this.headers,
       variables: variables ?? this.variables,
       timeOutDuration: timeOutDuration ?? this.timeOutDuration,
       errorPolicy: errorPolicy ?? this.errorPolicy,
@@ -55,6 +59,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
         name: json['name'],
         token: json['token'],
         type: json['type'],
+        headers: json['headers'],
         variables: json['variables'],
         timeOutDuration: Duration(seconds: json['timeOutDuration']),
         errorPolicy: json['errorPolicy'],
@@ -69,6 +74,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
         "name": name,
         "token": token,
         "type": type,
+        "headers": headers,
         "variables": variables,
         "timeOutDuration": timeOutDuration.inSeconds,
         "errorPolicy": errorPolicy,

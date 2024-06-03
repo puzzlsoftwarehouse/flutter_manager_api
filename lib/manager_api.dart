@@ -15,21 +15,18 @@ import 'package:manager_api/requests/rest_request.dart';
 
 DefaultFailures managerDefaultAPIFailures = DefaultFailures();
 
-enum ManagerHeader { apiUrl, tokenProject }
-
 class ManagerAPI {
-  late GraphQLHelper _api;
+  final GraphQLHelper _api = GraphQLHelper();
   final RestHelper _restAPI = RestHelper();
 
   List<Failure> _failures = <Failure>[];
+  Map<String, String>? Function(String? token)? headers;
 
   ManagerAPI({
     required DefaultFailures defaultFailures,
     List<Failure> failures = const <Failure>[],
-    Map<ManagerHeader, String>? optionsHeader,
+    this.headers,
   }) {
-    _api = GraphQLHelper(optionsHeader);
-
     _failures = DefaultAPIFailures.failures..addAll(failures);
     managerDefaultAPIFailures = defaultFailures;
   }
@@ -49,7 +46,9 @@ class ManagerAPI {
   }
 
   Failure getGraphQLFailure(
-      OperationException? exception, List<Failure> failures) {
+    OperationException? exception,
+    List<Failure> failures,
+  ) {
     log("GraphQL Error", error: exception.toString());
     _failures.addAll(failures);
 
@@ -84,6 +83,7 @@ class ManagerAPI {
       return await _api.mutation(
         data: query,
         token: request.token,
+        headers: request.headers ?? headers?.call(request.token),
         variables: request.variables,
         durationTimeOut: request.timeOutDuration,
         errorPolicy: request.errorPolicy,
@@ -93,6 +93,7 @@ class ManagerAPI {
     return await _api.query(
       data: query,
       token: request.token,
+      headers: request.headers ?? headers?.call(request.token),
       variables: request.variables,
       durationTimeOut: request.timeOutDuration,
       errorPolicy: request.errorPolicy,
