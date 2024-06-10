@@ -4,10 +4,10 @@ import 'package:gql/ast.dart';
 
 import 'package:gql/language.dart';
 
-class GraphQLHelper implements IGraphQLHelper {
-  DocumentNode gqlPersonalize(String document) =>
-      transform(parseString(document), []);
+DocumentNode gqlPersonalize(String document) =>
+    transform(parseString(document), []);
 
+class GraphQLHelper implements IGraphQLHelper {
   Duration get _durationTimeOut => const Duration(seconds: 15);
 
   GraphQLClient getGraphQLClient({
