@@ -3,19 +3,11 @@ import 'dart:developer';
 import 'package:flutter/foundation.dart';
 import 'package:universal_html/html.dart' as html;
 
-/// Callback exposing currently upload progress.
 typedef UploadProgressListener = Function(int progress);
-
-/// Callback exposing upload fail event.
 typedef UploadFailureListener = Function();
-
-/// Callback exposing upload complete event.
 typedef UploadCompleteListener = Function(String response);
-
-/// Callback exposing one or multiple files selected.
 typedef OnFileSelectedListener = Function(html.File file);
 
-/// Uploading large file util by using JS in flutter web.
 class LargeFileUploader {
   String requestId = UniqueKey().toString();
   html.Worker? _worker;
