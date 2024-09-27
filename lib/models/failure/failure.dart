@@ -9,8 +9,8 @@ class Failure {
     String? title,
     String? message,
     String? log,
-  })  : _log = log,
-        title = title ?? '$code: Warning!',
+  })  : _log = log ?? '[$code] $message',
+        title = title ?? 'Error!',
         message = message ?? "Unknown error, contact our support";
 
   String get log => _log ?? message;
