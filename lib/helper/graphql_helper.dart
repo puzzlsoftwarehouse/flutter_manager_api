@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:graphql/client.dart';
 
 import 'package:gql/ast.dart';
@@ -36,6 +38,7 @@ class GraphQLHelper implements IGraphQLHelper {
     return GraphQLClient(
       cache: GraphQLCache(),
       link: link,
+      queryRequestTimeout: _durationTimeOut,
     );
   }
 
