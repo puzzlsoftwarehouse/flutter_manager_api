@@ -7,6 +7,8 @@ import 'package:gql/ast.dart';
 import 'package:gql/language.dart';
 
 class GraphQLHelper implements IGraphQLHelper {
+  Duration? timeOutDuration;
+  GraphQLHelper({this.timeOutDuration});
   DocumentNode gqlPersonalize(String document) =>
       transform(parseString(document), []);
 
@@ -38,7 +40,7 @@ class GraphQLHelper implements IGraphQLHelper {
     return GraphQLClient(
       cache: GraphQLCache(),
       link: link,
-      queryRequestTimeout: _durationTimeOut,
+      queryRequestTimeout: timeOutDuration ?? _durationTimeOut,
     );
   }
 
@@ -65,7 +67,7 @@ class GraphQLHelper implements IGraphQLHelper {
 
     try {
       final QueryResult result = await client.mutate(options).timeout(
-            durationTimeOut ?? _durationTimeOut,
+            durationTimeOut ?? timeOutDuration ?? _durationTimeOut,
             onTimeout: () async => _timeOutAPI(),
           );
 
@@ -109,7 +111,7 @@ class GraphQLHelper implements IGraphQLHelper {
       );
 
       final QueryResult result = await client.query(options).timeout(
-            durationTimeOut ?? _durationTimeOut,
+            durationTimeOut ?? timeOutDuration ?? _durationTimeOut,
             onTimeout: () async => _timeOutAPI(),
           );
 
