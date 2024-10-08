@@ -16,8 +16,8 @@ import 'package:manager_api/requests/rest_request.dart';
 DefaultFailures managerDefaultAPIFailures = DefaultFailures();
 
 class ManagerAPI {
-  final GraphQLHelper _api = GraphQLHelper();
-  final RestHelper _restAPI = RestHelper();
+  late GraphQLHelper _api;
+  late RestHelper _restAPI;
 
   List<Failure> _failures = <Failure>[];
   Map<String, String>? Function(String? token)? headers;
@@ -26,9 +26,12 @@ class ManagerAPI {
     required DefaultFailures defaultFailures,
     List<Failure> failures = const <Failure>[],
     this.headers,
+    Duration? timeOutDuration,
   }) {
     _failures = DefaultAPIFailures.failures..addAll(failures);
     managerDefaultAPIFailures = defaultFailures;
+    _restAPI = RestHelper();
+    _api = GraphQLHelper(timeOutDuration: timeOutDuration);
   }
 
   Failure getDefaultFailure(String? text) => Failure(
