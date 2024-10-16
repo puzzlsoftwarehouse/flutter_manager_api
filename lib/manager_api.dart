@@ -1,8 +1,9 @@
-import 'dart:developer';
-
 import 'package:collection/collection.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:graphql/client.dart';
+import 'package:log_print/log_print.dart';
 import 'package:manager_api/default_api_failures.dart';
 import 'package:manager_api/graphql_read.dart';
 import 'package:manager_api/helper/graphql_helper.dart';
@@ -52,7 +53,7 @@ class ManagerAPI {
     OperationException? exception,
     List<Failure> failures,
   ) {
-    log("GraphQL Error", error: exception.toString());
+    generateLog("GraphQL Error: ${exception.toString()}", isError: true);
     _failures.addAll(failures);
 
     if (exception?.linkException != null) {
@@ -74,7 +75,8 @@ class ManagerAPI {
 
   Future<QueryResult<Object?>> getCorrectGraphQLRequest(
       GraphQLRequest request) async {
-    log("${request.variables} - ${request.name}");
+    generateLog(
+        """${request.type.toString().split(".").last} ${request.name} - ${request.variables}""");
 
     String query = await GraphQLRead.get(
       path: request.path,
@@ -114,7 +116,7 @@ class ManagerAPI {
     if (request?['typeAPI'] == 'rest') {
       RestRequest requestResult = convertRestRequest(request);
       if (requestResult.skipRequest != null) {
-        log("REQUEST SKIPPED: ${requestResult.name}");
+        generateLog("REQUEST SKIPPED: ${requestResult.name}", isAlert: true);
         return requestResult.skipRequest!.result;
       }
       Map<String, dynamic>? result = await getCorrectRestRequest(requestResult);
@@ -126,7 +128,7 @@ class ManagerAPI {
 
     GraphQLRequest requestResult = convertGraphQLRequest(request);
     if (requestResult.skipRequest != null) {
-      log("REQUEST SKIPPED: ${requestResult.name}");
+      generateLog("REQUEST SKIPPED: ${requestResult.name}", isAlert: true);
       return requestResult.skipRequest!.result;
     }
 
@@ -175,7 +177,7 @@ class ManagerAPI {
     Map<String, dynamic> exception,
     List<Failure> failures,
   ) {
-    log("Rest Request Error", error: exception.toString());
+    generateLog("Rest Request Error: ${exception.toString()}", isError: true);
     _failures.addAll(failures);
 
     if (exception['type'] == 'noConnection') {
@@ -208,7 +210,8 @@ class ManagerAPI {
 
   Future<Map<String, dynamic>?> getCorrectRestRequest(
       RestRequest request) async {
-    log("${request.body} - ${request.name}");
+    generateLog(
+        """${request.type.toString().split(".").last} ${request.name} - ${request.body}""");
 
     if (request.bodyType == BodyType.bytes) {
       return await _restAPI.sendMedia(
@@ -230,6 +233,7 @@ class ManagerAPI {
             : ResponseType.json,
       );
     }
+
     if (request.type == RequestRestType.post) {
       return await _restAPI.postRequest(
         url: request.url,
@@ -238,7 +242,27 @@ class ManagerAPI {
       );
     }
 
-    log("REQUEST TYPE REST NOT FOUND");
+    generateLog("REQUEST TYPE REST NOT FOUND", isError: true);
     return null;
+  }
+
+  void generateLog(
+    String body, {
+    bool isError = false,
+    bool isAlert = false,
+  }) {
+    if (!kDebugMode) return;
+
+    LogPrint(
+      body,
+      type: LogPrintType.custom,
+      title: "Graphql",
+      titleBackgroundColor: isAlert
+          ? Colors.yellowAccent
+          : isError
+              ? Colors.redAccent
+              : Colors.greenAccent,
+      messageColor: Colors.cyanAccent,
+    );
   }
 }
