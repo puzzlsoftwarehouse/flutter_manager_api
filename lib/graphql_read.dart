@@ -17,7 +17,7 @@ class GraphQLRead {
     int quantityClose = 0;
 
     String fileResult = (await rootBundle.loadString(
-        'lib/src/services/graphql/${StringConverter.camelCaseToSnakeCase(path)}.graphql'));
+        'lib/src/services/graphql/${StringConverter.camelCaseToSnakeCase(path)}/${StringConverter.camelCaseToSnakeCase(path)}.graphql'));
 
     String stringType = type == RequestGraphQLType.query ? "query" : "mutation";
     bool firstLine = false;

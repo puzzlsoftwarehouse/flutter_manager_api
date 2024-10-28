@@ -75,9 +75,6 @@ class ManagerAPI {
 
   Future<QueryResult<Object?>> getCorrectGraphQLRequest(
       GraphQLRequest request) async {
-    generateLog(
-        """${request.type.toString().split(".").last} ${request.name} - ${request.variables}""");
-
     String query = await GraphQLRead.get(
       path: request.path,
       type: request.type,
@@ -114,12 +111,20 @@ class ManagerAPI {
     int? ignoreCode,
   }) async {
     if (request?['typeAPI'] == 'rest') {
+      Stopwatch stopwatch = Stopwatch()..start();
       RestRequest requestResult = convertRestRequest(request);
       if (requestResult.skipRequest != null) {
         generateLog("REQUEST SKIPPED: ${requestResult.name}", isAlert: true);
         return requestResult.skipRequest!.result;
       }
       Map<String, dynamic>? result = await getCorrectRestRequest(requestResult);
+      stopwatch.stop();
+
+      generateLog(generateMsg(
+        restRequest: requestResult,
+        stopwatch: stopwatch,
+      ));
+
       if (result?['error'] != null) {
         return Left(getRestFailure(result!['error'], requestResult.failures));
       }
@@ -142,11 +147,19 @@ class ManagerAPI {
     required GraphQLRequest<dynamic> requestResult,
     int? ignoreCode,
   }) async {
+    Stopwatch stopwatch = Stopwatch()..start();
+
     if (ignoreCode != null) {
       requestResult = requestResult.copyWith(errorPolicy: ErrorPolicy.all);
     }
 
     QueryResult<Object?> result = await getCorrectGraphQLRequest(requestResult);
+    stopwatch.stop();
+
+    generateLog(generateMsg(
+      requestResult: requestResult,
+      stopwatch: stopwatch,
+    ));
 
     if (result.hasException && ignoreCode == null) {
       return Left(getGraphQLFailure(result.exception, requestResult.failures));
@@ -210,9 +223,6 @@ class ManagerAPI {
 
   Future<Map<String, dynamic>?> getCorrectRestRequest(
       RestRequest request) async {
-    generateLog(
-        """${request.type.toString().split(".").last} ${request.name} - ${request.body}""");
-
     if (request.bodyType == BodyType.bytes) {
       return await _restAPI.sendMedia(
         file: request.body!['file'],
@@ -244,6 +254,22 @@ class ManagerAPI {
 
     generateLog("REQUEST TYPE REST NOT FOUND", isError: true);
     return null;
+  }
+
+  String generateMsg({
+    RestRequest? restRequest,
+    GraphQLRequest<dynamic>? requestResult,
+    Stopwatch? stopwatch,
+  }) {
+    String type = requestResult?.type.toString().split(".").last ??
+        restRequest?.type.toString().split(".").last ??
+        "";
+
+    String name = requestResult?.name ?? restRequest?.name ?? "";
+    Map<String, dynamic> variables =
+        requestResult?.variables ?? restRequest?.body ?? {};
+
+    return """$type $name - $variables - ${stopwatch?.elapsedMilliseconds}ms""";
   }
 
   void generateLog(
