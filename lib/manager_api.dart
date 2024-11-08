@@ -19,6 +19,7 @@ DefaultFailures managerDefaultAPIFailures = DefaultFailures();
 class ManagerAPI {
   late GraphQLHelper _api;
   late RestHelper _restAPI;
+  String? token;
 
   List<Failure> _failures = <Failure>[];
   Map<String, String>? Function(String? token)? headers;
@@ -27,6 +28,7 @@ class ManagerAPI {
     required DefaultFailures defaultFailures,
     List<Failure> failures = const <Failure>[],
     this.headers,
+    this.token,
     Duration? timeOutDuration,
   }) {
     _failures = DefaultAPIFailures.failures..addAll(failures);
@@ -84,8 +86,8 @@ class ManagerAPI {
     if (request.type == RequestGraphQLType.mutation) {
       return await _api.mutation(
         data: query,
-        token: request.token,
-        headers: request.headers ?? headers?.call(request.token),
+        token: request.token ?? token,
+        headers: request.headers ?? headers?.call(request.token ?? token),
         variables: request.variables,
         durationTimeOut: request.timeOutDuration,
         errorPolicy: request.errorPolicy,
@@ -94,8 +96,8 @@ class ManagerAPI {
 
     return await _api.query(
       data: query,
-      token: request.token,
-      headers: request.headers ?? headers?.call(request.token),
+      token: request.token ?? token,
+      headers: request.headers ?? headers?.call(request.token ?? token),
       variables: request.variables,
       durationTimeOut: request.timeOutDuration,
       errorPolicy: request.errorPolicy,
