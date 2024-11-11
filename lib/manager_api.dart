@@ -230,7 +230,7 @@ class ManagerAPI with ManagerToken {
   Future<Map<String, dynamic>?> getCorrectRestRequest(
       RestRequest request) async {
     Map<String, String>? newHeaders =
-        (headers ?? request.headers ?? {}) as Map<String, String>?;
+        headers?.call(token) ?? request.headers ?? {};
 
     if (request.bodyType == BodyType.bytes) {
       return await _restAPI.sendMedia(
