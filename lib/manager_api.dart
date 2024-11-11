@@ -16,7 +16,13 @@ import 'package:manager_api/requests/rest_request.dart';
 
 DefaultFailures managerDefaultAPIFailures = DefaultFailures();
 
-class ManagerAPI {
+mixin class ManagerToken {
+  String? token;
+}
+
+class ManagerAPI with ManagerToken {
+  static String? _token;
+
   late GraphQLHelper _api;
   late RestHelper _restAPI;
 
@@ -84,8 +90,8 @@ class ManagerAPI {
     if (request.type == RequestGraphQLType.mutation) {
       return await _api.mutation(
         data: query,
-        token: request.token,
-        headers: request.headers ?? headers?.call(request.token),
+        token: request.token ?? token,
+        headers: request.headers ?? headers?.call(request.token ?? token),
         variables: request.variables,
         durationTimeOut: request.timeOutDuration,
         errorPolicy: request.errorPolicy,
@@ -94,8 +100,8 @@ class ManagerAPI {
 
     return await _api.query(
       data: query,
-      token: request.token,
-      headers: request.headers ?? headers?.call(request.token),
+      token: request.token ?? token,
+      headers: request.headers ?? headers?.call(request.token ?? token),
       variables: request.variables,
       durationTimeOut: request.timeOutDuration,
       errorPolicy: request.errorPolicy,
@@ -223,12 +229,15 @@ class ManagerAPI {
 
   Future<Map<String, dynamic>?> getCorrectRestRequest(
       RestRequest request) async {
+    Map<String, String>? newHeaders =
+        request.headers ?? headers?.call(token) ?? {};
+
     if (request.bodyType == BodyType.bytes) {
       return await _restAPI.sendMedia(
         file: request.body!['file'],
         url: request.url,
         parameters: request.parameters ?? {},
-        headers: request.headers,
+        headers: newHeaders,
         streamProgress: request.streamProgress,
         cancelToken: request.cancelToken,
       );
@@ -237,7 +246,7 @@ class ManagerAPI {
     if (request.type == RequestRestType.get) {
       return await _restAPI.getRequest(
         url: request.url,
-        headers: request.headers,
+        headers: newHeaders,
         responseType: request.bodyResponseType == RequestResponseBodyType.bytes
             ? ResponseType.bytes
             : ResponseType.json,
@@ -247,7 +256,7 @@ class ManagerAPI {
     if (request.type == RequestRestType.post) {
       return await _restAPI.postRequest(
         url: request.url,
-        headers: request.headers,
+        headers: newHeaders,
         body: request.body,
       );
     }
@@ -291,4 +300,13 @@ class ManagerAPI {
       messageColor: Colors.cyanAccent,
     );
   }
+
+  @override
+  set token(String? value) {
+    _token = value;
+    super.token = value;
+  }
+
+  @override
+  String? get token => _token;
 }
