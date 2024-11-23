@@ -7,12 +7,14 @@ import 'package:log_print/log_print.dart';
 import 'package:manager_api/default_api_failures.dart';
 import 'package:manager_api/graphql_read.dart';
 import 'package:manager_api/helper/graphql_helper.dart';
+import 'package:manager_api/helper/rest_helper.dart';
 import 'package:manager_api/models/failure/default_failures.dart';
 import 'package:manager_api/models/failure/failure.dart';
 import 'package:manager_api/models/resultlr/resultlr.dart';
 import 'package:manager_api/requests/graphql_request.dart';
-import 'package:manager_api/helper/rest_helper.dart';
 import 'package:manager_api/requests/rest_request.dart';
+
+export 'package:manager_api/utils/validate_fragments.dart';
 
 DefaultFailures managerDefaultAPIFailures = DefaultFailures();
 
