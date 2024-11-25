@@ -16,7 +16,6 @@ class GraphQLRead {
       StringBuffer fragmentBuffer = StringBuffer();
       bool fragmentFirstLine = false;
       Set<String> nestedFragments = {};
-
       for (String line in fileResult.split("\n")) {
         if (fragmentFirstLine) {
           fragmentOpen += line.split("{").length - 1;
@@ -31,17 +30,19 @@ class GraphQLRead {
           fragmentClose += line.split("}").length - 1;
           fragmentBuffer.writeln(line);
         }
+      }
 
-        // Check for nested fragment usage
+      // Check for nested fragment usage
+      for (String line in fragmentBuffer.toString().split("\n")) {
         RegExp fragmentUsageRegex = RegExp(r'\.\.\.\s*(\w+)');
         Iterable<RegExpMatch> matches = fragmentUsageRegex.allMatches(line);
         for (var nestedMatch in matches) {
-          if (nestedMatch.group(1) != null) {
+          if (nestedMatch.group(1) != null &&
+              !addedFragments.contains(nestedMatch.group(1))) {
             nestedFragments.add(nestedMatch.group(1)!);
           }
         }
       }
-
       // Recursively add nested fragments
       for (String nestedFragment in nestedFragments) {
         if (!addedFragments.contains(nestedFragment)) {
@@ -94,16 +95,16 @@ class GraphQLRead {
         lineIncrement.writeln(line);
 
         // Check for fragment usage
-        RegExp fragmentUsageRegex = RegExp(r'\.\.\.\s*(\w+)');
-        Iterable<RegExpMatch> matches = fragmentUsageRegex.allMatches(line);
-        for (var match in matches) {
-          if (match.group(1) != null) {
-            fragments.add(match.group(1)!);
-          }
-        }
       }
     }
-
+    RegExp fragmentUsageRegex = RegExp(r'\.\.\.\s*(\w+)');
+    Iterable<RegExpMatch> matches =
+        fragmentUsageRegex.allMatches(lineIncrement.toString());
+    for (var match in matches) {
+      if (match.group(1) != null) {
+        fragments.add(match.group(1)!);
+      }
+    }
     // Append fragments to the result
     for (String fragment in fragments) {
       String fragmentContent =
