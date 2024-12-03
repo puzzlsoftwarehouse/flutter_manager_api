@@ -9,6 +9,7 @@ import 'package:gql/language.dart';
 class GraphQLHelper implements IGraphQLHelper {
   Duration? timeOutDuration;
   GraphQLHelper({this.timeOutDuration});
+
   DocumentNode gqlPersonalize(String document) =>
       transform(parseString(document), []);
 

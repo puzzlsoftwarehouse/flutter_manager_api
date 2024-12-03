@@ -11,7 +11,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
   final String? token;
   final Map<String, String>? headers;
   final Map<String, dynamic> variables;
-  final Duration timeOutDuration;
+  final Duration? timeOutDuration;
   final ErrorPolicy? errorPolicy;
 
   GraphQLRequest({
@@ -22,7 +22,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
     this.token,
     this.headers,
     this.variables = const {},
-    this.timeOutDuration = const Duration(seconds: 15),
+    this.timeOutDuration,
     this.errorPolicy,
     List<Failure> failures = const <Failure>[],
     super.skipRequest,
@@ -61,11 +61,13 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
         type: json['type'],
         headers: json['headers'],
         variables: json['variables'],
-        timeOutDuration: Duration(seconds: json['timeOutDuration']),
         errorPolicy: json['errorPolicy'],
         failures: json['failures'],
         returnRequest: json['returnRequest'],
         skipRequest: json['skipRequest'],
+        timeOutDuration: json['timeOutDuration'] != null
+            ? Duration(seconds: json['timeOutDuration'])
+            : null,
       );
 
   @override
@@ -76,7 +78,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
         "type": type,
         "headers": headers,
         "variables": variables,
-        "timeOutDuration": timeOutDuration.inSeconds,
+        "timeOutDuration": timeOutDuration?.inSeconds,
         "errorPolicy": errorPolicy,
         "failures": failures,
         "returnRequest": returnRequest,

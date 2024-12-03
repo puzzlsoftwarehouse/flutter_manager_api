@@ -24,6 +24,7 @@ mixin class ManagerToken {
 
 class ManagerAPI with ManagerToken {
   static String? _token;
+  Duration? timeOutDuration;
 
   late GraphQLHelper _api;
   late RestHelper _restAPI;
@@ -35,7 +36,7 @@ class ManagerAPI with ManagerToken {
     required DefaultFailures defaultFailures,
     List<Failure> failures = const <Failure>[],
     this.headers,
-    Duration? timeOutDuration,
+    this.timeOutDuration,
   }) {
     _failures = DefaultAPIFailures.failures..addAll(failures);
     managerDefaultAPIFailures = defaultFailures;
@@ -95,7 +96,7 @@ class ManagerAPI with ManagerToken {
         token: request.token ?? token,
         headers: request.headers ?? headers?.call(request.token ?? token),
         variables: request.variables,
-        durationTimeOut: request.timeOutDuration,
+        durationTimeOut: request.timeOutDuration ?? timeOutDuration,
         errorPolicy: request.errorPolicy,
       );
     }
@@ -105,7 +106,7 @@ class ManagerAPI with ManagerToken {
       token: request.token ?? token,
       headers: request.headers ?? headers?.call(request.token ?? token),
       variables: request.variables,
-      durationTimeOut: request.timeOutDuration,
+      durationTimeOut: request.timeOutDuration ?? timeOutDuration,
       errorPolicy: request.errorPolicy,
     );
   }
