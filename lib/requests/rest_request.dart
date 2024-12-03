@@ -20,7 +20,7 @@ class RestRequest<ResultLR> extends RequestAPI<ResultLR> {
   final RequestResponseBodyType bodyResponseType;
   final BodyType bodyType;
   final CancelToken? cancelToken;
-  final Duration timeOutDuration;
+  final Duration? timeOutDuration;
 
   RestRequest({
     required super.name,
@@ -36,7 +36,7 @@ class RestRequest<ResultLR> extends RequestAPI<ResultLR> {
     this.bodyResponseType = RequestResponseBodyType.json,
     this.bodyType = BodyType.json,
     this.cancelToken,
-    this.timeOutDuration = const Duration(seconds: 15),
+    this.timeOutDuration,
   }) : assert(
           !(bodyType == BodyType.bytes &&
               (body == null || !body.containsKey('file'))),
@@ -57,7 +57,9 @@ class RestRequest<ResultLR> extends RequestAPI<ResultLR> {
         bodyResponseType: json['bodyResponseType'],
         bodyType: json['bodyType'],
         cancelToken: json['cancelToken'],
-        timeOutDuration: Duration(seconds: json['timeOutDuration']),
+        timeOutDuration: json['timeOutDuration'] != null
+            ? Duration(seconds: json['timeOutDuration'])
+            : null,
       );
 
   @override
@@ -76,6 +78,6 @@ class RestRequest<ResultLR> extends RequestAPI<ResultLR> {
         "bodyResponseType": bodyResponseType,
         "bodyType": bodyType,
         "cancelToken": cancelToken,
-        "timeOutDuration": timeOutDuration.inSeconds,
+        "timeOutDuration": timeOutDuration?.inSeconds,
       };
 }
