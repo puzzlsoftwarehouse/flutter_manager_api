@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class ValidateFragments {
@@ -13,7 +14,7 @@ class ValidateFragments {
       final path = file.path.replaceAll('\\', '/');
       final String? fragmentNotFound = await _validateFragments(path);
       if (fragmentNotFound != null) {
-        print('File: $path has not the fragment $fragmentNotFound');
+        debugPrint('File: $path has not the fragment $fragmentNotFound');
         return 'File: $path has not the fragment $fragmentNotFound';
       }
     }

@@ -110,7 +110,7 @@ class GraphQLRead {
       String fragmentContent =
           extractFragment(fragment, fileResult, addedFragments);
       if (!addedFragments.contains(fragment) && fragmentContent.isNotEmpty) {
-        result += "\n" + fragmentContent;
+        result += "\n$fragmentContent";
         addedFragments.add(fragment);
       }
     }
