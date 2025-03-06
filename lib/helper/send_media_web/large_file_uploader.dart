@@ -45,7 +45,7 @@ class LargeFileUploader {
       "error",
       (event) {
         console.log("Received message from worker: ${event.data}".toJS);
-      }.toJS,
+      }.toJSCaptureThis,
     );
 
     _worker?.addEventListener(
@@ -57,7 +57,7 @@ class LargeFileUploader {
           onFailure: onFailure,
           onComplete: onComplete,
         );
-      }.toJS,
+      }.toJSCaptureThis,
     );
   }
 
