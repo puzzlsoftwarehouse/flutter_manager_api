@@ -1,21 +1,19 @@
 import 'package:flutter/foundation.dart';
-import '../../non_web.dart' if (dart.library.html) 'package:web/web.dart'
-    as web;
-import '../../non_web.dart' if (dart.library.html) 'dart:js_interop'
-    as js_interop;
+import 'package:web/web.dart';
+import 'dart:js_interop';
 
 typedef UploadProgressListener = Function(int progress);
 typedef UploadFailureListener = Function();
 typedef UploadCompleteListener = Function(String response);
-typedef OnFileSelectedListener = Function(web.File file);
+typedef OnFileSelectedListener = Function(File file);
 
 class LargeFileUploader {
   String requestId = UniqueKey().toString();
-  web.Worker? _worker;
+  Worker? _worker;
 
   LargeFileUploader() {
-    js_interop.JSString str = 'upload_worker.js'.toJS;
-    _worker = web.Worker(str);
+    JSString str = 'upload_worker.js'.toJS;
+    _worker = Worker(str);
   }
 
   void upload({
@@ -40,30 +38,27 @@ class LargeFileUploader {
       'requestId': requestId,
     };
 
-    js_interop.JSBoxedDartObject jsStr = str.toJSBox;
+    JSBoxedDartObject jsStr = str.toJSBox;
     _worker?.postMessage(jsStr);
 
-    // _worker?.addEventListener("error", (event) {} as web.EventListener?);
+    _worker?.addEventListener(
+      "error",
+      (event) {
+        console.log("Received message from worker: ${event.data}".toJS);
+      }.toJS,
+    );
 
-    // _worker?.addEventListener<String>("message", (event) {
-    //   // console.log(`Received message from worker: ${event.data}`);
-    // });
-
-    // _worker?.addEventListener("error", (web.EventListener eent) {});
-    // _worker?.addEventListener("message", (web.EventListener eent) {});
-
-    // _worker?.onError.listen((event) {
-    //   log("Request abort or is necessary to add file upload_worker.js inside project on folder 'web' like 'web/upload_worker.js");
-    // });
-    //
-    // _worker?.onMessage.listen((data) {
-    //   _handleCallbacks(
-    //     data.data,
-    //     onSendProgress: onSendProgress,
-    //     onFailure: onFailure,
-    //     onComplete: onComplete,
-    //   );
-    // });
+    _worker?.addEventListener(
+      "message",
+      (data) {
+        _handleCallbacks(
+          data.data,
+          onSendProgress: onSendProgress,
+          onFailure: onFailure,
+          onComplete: onComplete,
+        );
+      }.toJS,
+    );
   }
 
   void onCancel() {
@@ -72,7 +67,7 @@ class LargeFileUploader {
       'requestId': requestId,
     };
 
-    js_interop.JSBoxedDartObject jsStr = str.toJSBox;
+    JSBoxedDartObject jsStr = str.toJSBox;
     _worker?.postMessage(jsStr);
   }
 
