@@ -1,18 +1,21 @@
-import 'dart:developer';
-
 import 'package:flutter/foundation.dart';
-import 'package:universal_html/html.dart' as html;
+import '../../non_web.dart' if (dart.library.html) 'package:web/web.dart'
+    as web;
+import '../../non_web.dart' if (dart.library.html) 'dart:js_interop'
+    as js_interop;
 
 typedef UploadProgressListener = Function(int progress);
 typedef UploadFailureListener = Function();
 typedef UploadCompleteListener = Function(String response);
-typedef OnFileSelectedListener = Function(html.File file);
+typedef OnFileSelectedListener = Function(web.File file);
 
 class LargeFileUploader {
   String requestId = UniqueKey().toString();
-  html.Worker? _worker;
+  web.Worker? _worker;
+
   LargeFileUploader() {
-    _worker = html.Worker('upload_worker.js');
+    js_interop.JSString str = 'upload_worker.js'.toJS;
+    _worker = web.Worker(str);
   }
 
   void upload({
@@ -28,32 +31,49 @@ class LargeFileUploader {
     if (cancelFunction != null) {
       cancelFunction(onCancel);
     }
-    _worker?.postMessage({
+
+    Map<String, dynamic> str = {
       'method': method,
       'uploadUrl': uploadUrl,
       'data': data,
       'headers': headers,
       'requestId': requestId,
-    });
-    _worker?.onError.listen((event) {
-      log("Request abort or is necessary to add file upload_worker.js inside project on folder 'web' like 'web/upload_worker.js");
-    });
+    };
 
-    _worker?.onMessage.listen((data) {
-      _handleCallbacks(
-        data.data,
-        onSendProgress: onSendProgress,
-        onFailure: onFailure,
-        onComplete: onComplete,
-      );
-    });
+    js_interop.JSBoxedDartObject jsStr = str.toJSBox;
+    _worker?.postMessage(jsStr);
+
+    // _worker?.addEventListener("error", (event) {} as web.EventListener?);
+
+    // _worker?.addEventListener<String>("message", (event) {
+    //   // console.log(`Received message from worker: ${event.data}`);
+    // });
+
+    // _worker?.addEventListener("error", (web.EventListener eent) {});
+    // _worker?.addEventListener("message", (web.EventListener eent) {});
+
+    // _worker?.onError.listen((event) {
+    //   log("Request abort or is necessary to add file upload_worker.js inside project on folder 'web' like 'web/upload_worker.js");
+    // });
+    //
+    // _worker?.onMessage.listen((data) {
+    //   _handleCallbacks(
+    //     data.data,
+    //     onSendProgress: onSendProgress,
+    //     onFailure: onFailure,
+    //     onComplete: onComplete,
+    //   );
+    // });
   }
 
   void onCancel() {
-    _worker?.postMessage({
+    Map<String, dynamic> str = {
       'method': 'abort',
       'requestId': requestId,
-    });
+    };
+
+    js_interop.JSBoxedDartObject jsStr = str.toJSBox;
+    _worker?.postMessage(jsStr);
   }
 
   void _handleCallbacks(
