@@ -3,8 +3,9 @@ import 'package:cross_file/cross_file.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:manager_api/default_api_failures.dart';
-import 'package:manager_api/helper/send_media_desktop.dart';
-import 'package:manager_api/helper/send_media_web/send_media_web.dart';
+import 'package:manager_api/helper/send_media_desktop.dart'
+    if (dart.library.html) 'package:manager_api/helper/send_media_web/send_media_web.dart';
+
 import 'package:rxdart/rxdart.dart';
 
 class RestHelper {
@@ -73,7 +74,7 @@ class RestHelper {
     CancelToken? cancelToken,
   }) async {
     if (kIsWeb) {
-      return await SendMediaWeb.sendMedia(
+      return await SendMedia.sendMedia(
         file: file,
         url: url,
         parameters: parameters,
@@ -82,7 +83,8 @@ class RestHelper {
         cancelToken: cancelToken,
       );
     }
-    return await SendMediaDesktop.sendMedia(
+
+    return await SendMedia.sendMedia(
       file: file,
       url: url,
       parameters: parameters,

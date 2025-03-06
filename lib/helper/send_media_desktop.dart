@@ -5,8 +5,9 @@ import 'package:cross_file/cross_file.dart';
 import 'package:dio/dio.dart';
 import 'package:rxdart/subjects.dart';
 
-class SendMediaDesktop {
-  SendMediaDesktop._();
+class SendMedia {
+  SendMedia._();
+
   static Future<Map<String, dynamic>> sendMedia({
     required XFile file,
     required String url,
