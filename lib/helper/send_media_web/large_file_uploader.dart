@@ -16,6 +16,7 @@ class LargeFileUploader {
     _worker = Worker(str);
   }
 
+  @staticInterop
   void upload({
     required String uploadUrl,
     required UploadProgressListener onSendProgress,
@@ -44,19 +45,33 @@ class LargeFileUploader {
     _worker?.addEventListener(
       "error",
       (event) {
-        console.log("Received message from worker: ${event.data}".toJS);
+        console.log("Received message from worker: $event".toJS);
       }.toJSCaptureThis,
     );
 
     _worker?.addEventListener(
       "message",
-      (data) {
-        _handleCallbacks(
-          data.data,
-          onSendProgress: onSendProgress,
-          onFailure: onFailure,
-          onComplete: onComplete,
-        );
+      (event) {
+        // print(event.dartify());
+
+        print(event);
+        // var arroz =
+        //
+        // print(arroz);
+
+        // var data = event.
+        // print(data);
+
+        // console.log("Received message from worker: ${event}".toJS);
+        // var data = _worker?.getProperty("data".toJS);
+        // print(data);
+        //
+        // _handleCallbacks(
+        //   data,
+        //   onSendProgress: onSendProgress,
+        //   onFailure: onFailure,
+        //   onComplete: onComplete,
+        // );
       }.toJSCaptureThis,
     );
   }
@@ -83,10 +98,12 @@ class LargeFileUploader {
       onSendProgress.call(data);
       return;
     }
+
     if (data.toString() == 'request failed') {
       onFailure?.call();
       return;
     }
+
     onComplete?.call(data);
   }
 }
