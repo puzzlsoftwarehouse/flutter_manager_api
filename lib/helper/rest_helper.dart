@@ -4,7 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:manager_api/default_api_failures.dart';
 import 'package:manager_api/helper/send_media_desktop.dart'
-    if (dart.library.html) 'package:manager_api/helper/send_media_web/send_media_web.dart';
+    if (dart.library.js_interop) 'package:manager_api/helper/send_media_web/send_media_web.dart';
 
 import 'package:rxdart/rxdart.dart';
 
