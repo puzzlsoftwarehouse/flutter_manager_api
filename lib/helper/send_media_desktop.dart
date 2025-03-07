@@ -3,6 +3,7 @@ import 'dart:developer';
 
 import 'package:cross_file/cross_file.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:rxdart/subjects.dart';
 
 class SendMedia {
@@ -16,10 +17,20 @@ class SendMedia {
     BehaviorSubject<int>? streamProgress,
     CancelToken? cancelToken,
   }) async {
-    MultipartFile dioFile = await MultipartFile.fromFile(
-      file.path,
-      filename: file.name,
-    );
+    MultipartFile dioFile;
+
+    if (kIsWeb) {
+      dioFile = MultipartFile.fromBytes(
+        await file.readAsBytes(),
+        filename: file.name,
+      );
+    } else {
+      dioFile = await MultipartFile.fromFile(
+        file.path,
+        filename: file.name,
+      );
+    }
+
     Dio dio = Dio();
     Map<String, dynamic> localHeaders = {"Content-Type": "multipart/form-data"};
     if (headers != null) localHeaders.addAll(headers);
