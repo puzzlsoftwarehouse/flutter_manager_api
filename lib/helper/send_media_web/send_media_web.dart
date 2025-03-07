@@ -30,7 +30,10 @@ class SendMedia {
     web.File htmlFile = web.File(
       jsArray,
       file.name,
-      web.FilePropertyBag(type: "type", endings: file.mimeType ?? ""),
+      web.FilePropertyBag(
+        type: file.mimeType ?? "application/octet-stream",
+        endings: "transparent",
+      ),
     );
 
     Uri uri = Uri.parse(url);
