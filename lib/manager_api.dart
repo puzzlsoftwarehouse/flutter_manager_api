@@ -278,13 +278,13 @@ class ManagerAPI with ManagerToken {
   }) {
     String type = requestResult?.type.toString().split(".").last ??
         restRequest?.type.toString().split(".").last ??
-        "";
+        "".toUpperCase();
 
     String name = requestResult?.name ?? restRequest?.name ?? "";
     Map<String, dynamic> variables =
         requestResult?.variables ?? restRequest?.body ?? {};
 
-    return """$type $name - $variables - ${stopwatch?.elapsedMilliseconds}ms""";
+    return """[${requestResult?.path.toUpperCase()}] [$type $name] - $variables - ${stopwatch?.elapsedMilliseconds}ms""";
   }
 
   void generateLog(
@@ -302,8 +302,8 @@ class ManagerAPI with ManagerToken {
           ? Colors.yellowAccent
           : isError
               ? Colors.redAccent
-              : Colors.greenAccent,
-      messageColor: Colors.cyanAccent,
+              : Colors.amberAccent,
+      messageColor: Colors.amberAccent,
     );
   }
 
