@@ -12,7 +12,7 @@ dependencies:
   flutter:
     sdk: flutter
 
-  graphql: ^5.2.0-beta.11
+  graphql: ^5.2.1
   gql: ^1.0.1-alpha+1730759315362
   dio: ^5.8.0+1
   universal_html: ^2.2.4

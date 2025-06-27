@@ -35,6 +35,8 @@ class ManagerAPI with ManagerToken {
   List<Failure> _failures = <Failure>[];
   Map<String, String>? Function(String? token)? headers;
 
+  Map<String, String>? _headerCustom;
+
   ManagerAPI({
     required DefaultFailures defaultFailures,
     List<Failure> failures = const <Failure>[],
@@ -97,7 +99,7 @@ class ManagerAPI with ManagerToken {
       return await _api.mutation(
         data: query,
         token: request.token ?? token,
-        headers: request.headers ?? headers?.call(request.token ?? token),
+        headers: getCorrectHeaders(request: request),
         variables: request.variables,
         durationTimeOut: request.timeOutDuration ?? timeOutDuration,
         errorPolicy: request.errorPolicy,
@@ -107,11 +109,26 @@ class ManagerAPI with ManagerToken {
     return await _api.query(
       data: query,
       token: request.token ?? token,
-      headers: request.headers ?? headers?.call(request.token ?? token),
+      headers: getCorrectHeaders(request: request),
       variables: request.variables,
       durationTimeOut: request.timeOutDuration ?? timeOutDuration,
       errorPolicy: request.errorPolicy,
     );
+  }
+
+  Map<String, String> getCorrectHeaders({
+    GraphQLRequest? request,
+    RestRequest? restRequest,
+  }) {
+    Map<String, String> newResult =
+        request?.headers ?? restRequest?.headers ?? <String, String>{};
+    newResult.addAll(_headerCustom ?? <String, String>{});
+
+    Map<String, String> actualHeaders =
+        headers?.call(request?.token ?? token) ?? <String, String>{};
+
+    actualHeaders.addAll(newResult);
+    return actualHeaders;
   }
 
   GraphQLRequest convertGraphQLRequest(Map<String, dynamic>? request) =>
@@ -235,15 +252,12 @@ class ManagerAPI with ManagerToken {
 
   Future<Map<String, dynamic>?> getCorrectRestRequest(
       RestRequest request) async {
-    Map<String, String>? newHeaders =
-        request.headers ?? headers?.call(token) ?? {};
-
     if (request.bodyType == BodyType.bytes) {
       return await _restAPI.sendMedia(
         file: request.body!['file'],
         url: request.url,
         parameters: request.parameters ?? {},
-        headers: newHeaders,
+        headers: getCorrectHeaders(restRequest: request),
         streamProgress: request.streamProgress,
         cancelToken: request.cancelToken,
       );
@@ -252,7 +266,7 @@ class ManagerAPI with ManagerToken {
     if (request.type == RequestRestType.get) {
       return await _restAPI.getRequest(
         url: request.url,
-        headers: newHeaders,
+        headers: getCorrectHeaders(restRequest: request),
         responseType: request.bodyResponseType == RequestResponseBodyType.bytes
             ? ResponseType.bytes
             : ResponseType.json,
@@ -262,13 +276,17 @@ class ManagerAPI with ManagerToken {
     if (request.type == RequestRestType.post) {
       return await _restAPI.postRequest(
         url: request.url,
-        headers: newHeaders,
+        headers: getCorrectHeaders(restRequest: request),
         body: request.body,
       );
     }
 
     generateLog("REQUEST TYPE REST NOT FOUND", isError: true);
     return null;
+  }
+
+  void addInHeader(Map<String, String> header) {
+    _headerCustom = {...header};
   }
 
   String generateMsg({
