@@ -23,10 +23,12 @@ DefaultFailures managerDefaultAPIFailures = DefaultFailures();
 
 mixin class ManagerToken {
   String? token;
+  Map<String, String>? headerCustom;
 }
 
 class ManagerAPI with ManagerToken {
   static String? _token;
+  static Map<String, String>? _headerCustom;
   Duration? timeOutDuration;
 
   late GraphQLHelper _api;
@@ -34,8 +36,6 @@ class ManagerAPI with ManagerToken {
 
   List<Failure> _failures = <Failure>[];
   Map<String, String>? Function(String? token)? headers;
-
-  Map<String, String>? _headerCustom;
 
   ManagerAPI({
     required DefaultFailures defaultFailures,
@@ -285,10 +285,6 @@ class ManagerAPI with ManagerToken {
     return null;
   }
 
-  void addInHeader(Map<String, String> header) {
-    _headerCustom = {...header};
-  }
-
   String generateMsg({
     RestRequest? restRequest,
     GraphQLRequest<dynamic>? requestResult,
@@ -336,4 +332,13 @@ class ManagerAPI with ManagerToken {
 
   @override
   String? get token => _token;
+
+  @override
+  set headerCustom(Map<String, String>? header) {
+    _headerCustom = {...?header};
+    super.headerCustom = {...?header};
+  }
+
+  @override
+  Map<String, String>? get headerCustom => _headerCustom;
 }
