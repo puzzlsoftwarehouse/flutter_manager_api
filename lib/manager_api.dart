@@ -84,7 +84,11 @@ class ManagerAPI with ManagerToken {
     Failure? failure =
         _failures.firstWhereOrNull((failure) => failure.code == exceptionCode);
 
-    return failure ?? getDefaultFailure(exceptionCode);
+    return (failure ?? getDefaultFailure(exceptionCode)).copyWith(
+        error: exception?.graphqlErrors
+            .map((item) => item.toString())
+            .toList()
+            .join('\n'));
   }
 
   Future<QueryResult<Object?>> getCorrectGraphQLRequest(
