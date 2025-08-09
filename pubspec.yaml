@@ -5,7 +5,7 @@ publish_to: 'none'
 homepage:
 
 environment:
-  sdk: '>=3.5.2 <4.0.0'
+  sdk: '>=3.7.0 <4.0.0'
   flutter: ">=1.17.0"
 
 dependencies:
@@ -15,9 +15,10 @@ dependencies:
   graphql: ^5.2.1
   gql: ^1.0.1-alpha+1730759315362
   dio: ^5.8.0+1
-  universal_html: ^2.2.4
+  web: ^1.1.1
   cross_file: ^0.3.4+2
   log_print: ^0.0.2
+  js_interop_utils: ^1.0.8
 
 dev_dependencies:
   flutter_test:

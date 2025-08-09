@@ -1,18 +1,24 @@
-import 'dart:developer';
+import 'dart:collection';
+import 'package:js_interop_utils/js_interop_utils.dart';
 
-import 'package:flutter/foundation.dart';
-import 'package:universal_html/html.dart' as html;
+import 'package:web/web.dart' as html;
 
 typedef UploadProgressListener = Function(int progress);
 typedef UploadFailureListener = Function();
-typedef UploadCompleteListener = Function(String response);
+typedef UploadCompleteListener = Function(dynamic response);
 typedef OnFileSelectedListener = Function(html.File file);
 
 class LargeFileUploader {
-  String requestId = UniqueKey().toString();
   html.Worker? _worker;
+
   LargeFileUploader() {
-    _worker = html.Worker('upload_worker.js');
+    _worker = html.Worker('upload_worker.js'.toJS);
+  }
+
+  Map<String, dynamic> linkedMapToMap(
+    LinkedHashMap<Object?, Object?> linkedMap,
+  ) {
+    return linkedMap.map((key, value) => MapEntry(key.toString(), value));
   }
 
   void upload({
@@ -28,63 +34,65 @@ class LargeFileUploader {
     if (cancelFunction != null) {
       cancelFunction(onCancel);
     }
-    _worker?.postMessage({
-      'method': method,
-      'uploadUrl': uploadUrl,
-      'data': data,
-      'headers': headers,
-      'requestId': requestId,
-    });
-    _worker?.onError.listen((event) {
-      log("Request abort or is necessary to add file upload_worker.js inside project on folder 'web' like 'web/upload_worker.js");
-    });
 
-    _worker?.onMessage.listen((data) {
-      _handleCallbacks(
-        data.data,
-        onSendProgress: onSendProgress,
-        onFailure: onFailure,
-        onComplete: onComplete,
-      );
-    });
+    Map<String, dynamic> map = {
+      'method': 'upload',
+      'uploadUrl': uploadUrl,
+      'file': data['file'],
+      'data': Map<String, dynamic>.from(data)..remove('file'),
+      'headers': headers,
+    };
+
+    _worker?.postMessage(map.toJSDeep);
+
+    _worker?.addEventListener(
+      "message",
+      ((html.Event event) {
+        final messageData = (event as html.MessageEvent).data;
+        final JSObject object = messageData as JSObject;
+
+        // if (linkedMap != null) {
+        // final map = linkedMapToMap(linkedMap);
+        final String? type = object.get("type") as String?;
+
+        switch (type) {
+          case 'progress':
+            final int? progress = object.get("progress") as int?;
+            onSendProgress(progress ?? 0);
+            break;
+          case 'success':
+            final responseData = object.get("data");
+            onComplete?.call(responseData);
+            break;
+          case 'error':
+            onFailure?.call();
+            break;
+          case 'abort':
+            break;
+        }
+        // }
+      }.toJS),
+    );
+
+    _worker?.addEventListener(
+      "error",
+      ((html.Event event) {
+        onFailure?.call();
+      }.toJS),
+    );
   }
 
   void onCancel() {
-    _worker?.postMessage({
-      'method': 'abort',
-      'requestId': requestId,
-    });
+    _worker?.postMessage({'method': 'abort'}.toJSDeep);
   }
 
-  void _handleCallbacks(
-    data, {
-    required UploadProgressListener onSendProgress,
-    UploadFailureListener? onFailure,
-    UploadCompleteListener? onComplete,
-  }) {
-    if (data == null) return;
-
-    if (data is int) {
-      onSendProgress.call(data);
-      return;
-    }
-    if (data.toString() == 'request failed') {
-      onFailure?.call();
-      return;
-    }
-    onComplete?.call(data);
+  void dispose() {
+    _worker?.terminate();
+    _worker = null;
   }
 }
 
-enum FileTypes {
-  file,
-  image,
-  imagePng,
-  imageGif,
-  imageJpeg,
-  audio,
-  video,
-}
+enum FileTypes { file, image, imagePng, imageGif, imageJpeg, audio, video }
 
 extension FileTypesExtention on FileTypes {
   String get value {
