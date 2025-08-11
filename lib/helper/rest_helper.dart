@@ -4,8 +4,11 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:manager_api/default_api_failures.dart';
 import 'package:manager_api/helper/send_media_desktop.dart';
-import 'package:manager_api/helper/send_media_web/send_media_web.dart';
 import 'package:rxdart/rxdart.dart';
+
+import 'send_media_web/web_file_wrapper_web.dart'
+    as send_media_web
+    if (dart.library.io) 'package:manager_api/helper/send_media_web/send_media_web.dart';
 
 class RestHelper {
   static const Duration _defaultTimeout = Duration(seconds: 15);
@@ -43,13 +46,7 @@ class RestHelper {
   }) async {
     return await tryRequest(() async {
       Response response = await Dio()
-          .post(
-            url,
-            options: Options(
-              headers: headers,
-            ),
-            data: body,
-          )
+          .post(url, options: Options(headers: headers), data: body)
           .timeout(_defaultTimeout);
 
       bool isSuccess = response.statusCode == 200;
@@ -71,7 +68,7 @@ class RestHelper {
     CancelToken? cancelToken,
   }) async {
     if (kIsWeb) {
-      return await SendMediaWeb.sendMedia(
+      return await send_media_web.SendMediaWeb.sendMedia(
         file: file,
         url: url,
         parameters: parameters,
@@ -113,9 +110,10 @@ class RestHelper {
 
       int? exceptionCode = result['exception_code'];
 
-      String? errorMessage = (result['detail'] is String)
-          ? result['detail']
-          : result['detail'].toString();
+      String? errorMessage =
+          (result['detail'] is String)
+              ? result['detail']
+              : result['detail'].toString();
 
       return _errorServer(
         code: (exceptionCode ?? "000").toString(),
@@ -128,14 +126,12 @@ class RestHelper {
     return {"data": response.data};
   }
 
-  Map<String, dynamic> _errorServer(
-      {required String code, required String? message}) {
+  Map<String, dynamic> _errorServer({
+    required String code,
+    required String? message,
+  }) {
     return {
-      'error': {
-        'type': 'server',
-        'code': code,
-        'message': message,
-      }
+      'error': {'type': 'server', 'code': code, 'message': message},
     };
   }
 
@@ -145,26 +141,21 @@ class RestHelper {
     } on DioException catch (e) {
       switch (e.type) {
         case DioExceptionType.connectionTimeout ||
-              DioExceptionType.receiveTimeout ||
-              DioExceptionType.sendTimeout:
+            DioExceptionType.receiveTimeout ||
+            DioExceptionType.sendTimeout:
           return {
-            'error': {
-              'type': 'timeout',
-              'message': 'tempo excedido',
-            }
+            'error': {'type': 'timeout', 'message': 'tempo excedido'},
           };
         case DioExceptionType.cancel:
           return {
             'error': {
               'code': DefaultAPIFailures.cancelErrorCode,
               'message': 'canceled by user',
-            }
+            },
           };
         case DioExceptionType.connectionError || DioExceptionType.unknown:
           return {
-            'error': {
-              'message': 'no Internet connection',
-            }
+            'error': {'message': 'no Internet connection'},
           };
         default:
           String? exceptionCode;

@@ -50,9 +50,6 @@ class LargeFileUploader {
       ((html.Event event) {
         final messageData = (event as html.MessageEvent).data;
         final JSObject object = messageData as JSObject;
-
-        // if (linkedMap != null) {
-        // final map = linkedMapToMap(linkedMap);
         final String? type = object.get("type") as String?;
 
         switch (type) {
@@ -70,7 +67,6 @@ class LargeFileUploader {
           case 'abort':
             break;
         }
-        // }
       }.toJS),
     );
 
@@ -89,28 +85,5 @@ class LargeFileUploader {
   void dispose() {
     _worker?.terminate();
     _worker = null;
-  }
-}
-
-enum FileTypes { file, image, imagePng, imageGif, imageJpeg, audio, video }
-
-extension FileTypesExtention on FileTypes {
-  String get value {
-    switch (this) {
-      case FileTypes.file:
-        return '';
-      case FileTypes.imagePng:
-        return 'image/png';
-      case FileTypes.imageGif:
-        return 'image/gif';
-      case FileTypes.imageJpeg:
-        return 'image/jpeg';
-      case FileTypes.image:
-        return 'image/*';
-      case FileTypes.audio:
-        return 'audio/*';
-      case FileTypes.video:
-        return 'video/*';
-    }
   }
 }
