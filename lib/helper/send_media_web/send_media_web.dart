@@ -4,7 +4,6 @@ import 'dart:typed_data';
 import 'package:cross_file/cross_file.dart';
 import 'package:dio/dio.dart';
 import 'package:js_interop_utils/js_interop_utils.dart';
-import 'package:manager_api/extension.dart';
 import 'package:manager_api/helper/send_media_web/large_file_uploader.dart';
 import 'package:rxdart/subjects.dart';
 import 'package:web/web.dart' as html;
@@ -44,13 +43,15 @@ class SendMediaWeb {
         if (completer.isCompleted) return;
 
         try {
-          if (response is String && response.isValidJson()) {
+          if (response is String) {
             Map<String, dynamic> data = jsonDecode(response);
-            completer.complete(data);
+            completer.complete({"data": data});
             return;
           }
 
-          completer.complete(response);
+          Map<String, dynamic> mapResponseLinkedMap =
+              response.cast<String, dynamic>();
+          completer.complete({"data": mapResponseLinkedMap});
         } catch (e) {
           completer.complete({'error': 'Erro ao processar resposta: $e'});
         }

@@ -68,7 +68,6 @@ class RestHelper {
     CancelToken? cancelToken,
   }) async {
     if (kIsWeb) {
-      print("entrando");
       return await send_media_web.SendMediaWeb.sendMedia(
         file: file,
         url: url,
