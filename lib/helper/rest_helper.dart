@@ -7,8 +7,8 @@ import 'package:manager_api/helper/send_media_desktop.dart';
 import 'package:rxdart/rxdart.dart';
 
 import 'send_media_web/web_file_wrapper_web.dart'
-    as send_media_web
-    if (dart.library.io) 'package:manager_api/helper/send_media_web/send_media_web.dart';
+    if (dart.library.html) 'package:manager_api/helper/send_media_web/send_media_web.dart'
+    as send_media_web;
 
 class RestHelper {
   static const Duration _defaultTimeout = Duration(seconds: 15);
@@ -68,6 +68,7 @@ class RestHelper {
     CancelToken? cancelToken,
   }) async {
     if (kIsWeb) {
+      print("entrando");
       return await send_media_web.SendMediaWeb.sendMedia(
         file: file,
         url: url,
