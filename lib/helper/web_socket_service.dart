@@ -127,6 +127,12 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   }
 
   @override
+  void sendMessage(String message) {
+    if (_controller == null || _isClosed) return;
+    _controller!.sink.add(message);
+  }
+
+  @override
   void closeSection() {
     debugger("WebSocket Disconnected $_url");
     stream.add("disconnected");
