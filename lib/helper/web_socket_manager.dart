@@ -16,6 +16,8 @@ abstract class WebSocketManager {
     bool enablePing = true,
   });
 
+  void sendMessage(String message);
+
   void checkConnection();
   void closeSection();
   Future<bool> create({

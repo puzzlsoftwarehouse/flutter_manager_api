@@ -94,7 +94,7 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
     if (_controller == null || _isClosed) return;
 
     _timer?.cancel();
-    _timer = Timer.periodic(Duration(seconds: 10), (timer) {
+    _timer = Timer.periodic(Duration(seconds: 100), (timer) {
       if (_controller == null) {
         _cancelTimer();
         return;
@@ -107,7 +107,7 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
       _controller!.sink.add(jsonEncode({"type": "ping"}));
       _pong = false;
 
-      Future.delayed(Duration(seconds: 5), () {
+      Future.delayed(Duration(seconds: 100), () {
         if (!_pong && !_isClosed) {
           if (_url == null || _token == null) return;
           debugger("WebSocket Disconnected  Don`t have pong");
@@ -124,6 +124,12 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
         }
       });
     });
+  }
+
+  @override
+  void sendMessage(String message) {
+    if (_controller == null || _isClosed) return;
+    _controller!.sink.add(message);
   }
 
   @override
