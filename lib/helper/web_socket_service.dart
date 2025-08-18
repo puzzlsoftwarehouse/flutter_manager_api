@@ -77,28 +77,27 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   @override
   void checkConnection(ConnectionState state) {
     if (_controller == null || _isClosed) return;
-    final ConnectionState? connectionState = _controller?.connection.state;
 
-    if (connectionState is Connected) {
+    if (state is Connected) {
       debugger("WebSocket Connected");
       stream.add("connected");
       setSocketType(WebSocketType.connected);
     }
 
-    if (connectionState is Reconnecting) {
+    if (state is Reconnecting) {
       debugger("WebSocket Reconnecting...");
       setSocketType(WebSocketType.trying);
       initialize(url: _url!, token: _token!);
     }
 
-    if (connectionState is Disconnected) {
+    if (state is Disconnected) {
       debugger("WebSocket Disconnected");
       stream.add("disconnected");
       setSocketType(WebSocketType.disconnected);
       initialize(url: _url!, token: _token!);
     }
 
-    if (connectionState is Reconnected) {
+    if (state is Reconnected) {
       debugger("WebSocket Reconnected");
       stream.add("connected");
       setSocketType(WebSocketType.connected);
