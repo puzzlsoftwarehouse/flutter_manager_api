@@ -16,7 +16,6 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   WebSocket? get controller => _controller;
 
   String? _url;
-  String? _token;
 
   WebSocketType _socketType = WebSocketType.trying;
   @override
@@ -32,8 +31,6 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
     required String token,
   }) async {
     _url = url;
-    _token = token;
-
     if (_isClosed) return false;
 
     setSocketType(WebSocketType.trying);
@@ -45,11 +42,7 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
       _controller = null;
       _controller = WebSocket(
         Uri.parse("$url${beforeString}token=$token"),
-        backoff: LinearBackoff(
-          initial: Duration(seconds: 0),
-          increment: Duration(seconds: 1),
-          maximum: Duration(seconds: 5),
-        ),
+        backoff: ConstantBackoff(Duration(seconds: 5)),
         pingInterval: Duration(seconds: 5),
       );
 
@@ -87,21 +80,18 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
     if (state is Reconnecting) {
       debugger("WebSocket Reconnecting...");
       setSocketType(WebSocketType.trying);
-      initialize(url: _url!, token: _token!);
     }
 
     if (state is Disconnected) {
       debugger("WebSocket Disconnected");
       stream.add("disconnected");
       setSocketType(WebSocketType.disconnected);
-      initialize(url: _url!, token: _token!);
     }
 
     if (state is Reconnected) {
       debugger("WebSocket Reconnected");
       stream.add("connected");
       setSocketType(WebSocketType.connected);
-      initialize(url: _url!, token: _token!);
     }
   }
 
