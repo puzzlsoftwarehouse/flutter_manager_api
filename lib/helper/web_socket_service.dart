@@ -18,8 +18,6 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   String? _url;
   String? _token;
 
-  Timer? _timer;
-
   WebSocketType _socketType = WebSocketType.trying;
   @override
   WebSocketType get socketType => _socketType;
@@ -40,9 +38,6 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
 
     setSocketType(WebSocketType.trying);
 
-    _timer?.cancel();
-    _timer = Timer.periodic(Duration(seconds: 5), (_) => checkConnection());
-
     try {
       String beforeString = url.contains("?") ? "&" : "?";
 
@@ -58,7 +53,7 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
         pingInterval: Duration(seconds: 5),
       );
 
-      checkConnection();
+      _controller!.connection.listen((state) => checkConnection(state));
 
       _controller!.messages.listen((event) {
         debugger("Recebendo dados do WebSocket: $event");
@@ -73,7 +68,6 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
       debugger("WebSocket Error: $e");
       stream.add("disconnected");
       setSocketType(WebSocketType.disconnected);
-      checkConnection();
       return false;
     }
 
@@ -81,7 +75,7 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   }
 
   @override
-  void checkConnection() {
+  void checkConnection(ConnectionState state) {
     if (_controller == null || _isClosed) return;
     final ConnectionState? connectionState = _controller?.connection.state;
 
@@ -127,7 +121,6 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
     _controller?.close();
     _isClosed = true;
     _controller = null;
-    _timer?.cancel();
   }
 
   @override
@@ -156,7 +149,6 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
 
   @override
   void dispose() {
-    _timer?.cancel();
     closeSection();
     super.dispose();
   }

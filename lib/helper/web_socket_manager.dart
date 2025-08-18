@@ -17,7 +17,7 @@ abstract class WebSocketManager {
 
   void sendMessage(String message);
 
-  void checkConnection();
+  void checkConnection(ConnectionState state);
   void closeSection();
   Future<bool> create({
     required String url,
