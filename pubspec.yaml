@@ -19,6 +19,7 @@ dependencies:
   cross_file: ^0.3.4+2
   log_print: ^0.0.2
   js_interop_utils: ^1.0.8
+  flutter_upchunk: ^2.0.3
 
 dev_dependencies:
   flutter_test:
