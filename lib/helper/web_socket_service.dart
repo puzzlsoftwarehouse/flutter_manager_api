@@ -18,6 +18,8 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   String? _url;
   String? _token;
 
+  Timer? _timer;
+
   WebSocketType _socketType = WebSocketType.trying;
   @override
   WebSocketType get socketType => _socketType;
@@ -37,6 +39,9 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
     if (_isClosed) return false;
 
     setSocketType(WebSocketType.trying);
+
+    _timer?.cancel();
+    _timer = Timer.periodic(Duration(seconds: 5), (_) => checkConnection());
 
     try {
       String beforeString = url.contains("?") ? "&" : "?";
@@ -72,9 +77,6 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
       return false;
     }
 
-    debugger("WebSocket Connected: ${_controller != null}");
-    stream.add("connected");
-    setSocketType(WebSocketType.connected);
     return _controller != null;
   }
 
@@ -83,31 +85,30 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
     if (_controller == null || _isClosed) return;
     final ConnectionState? connectionState = _controller?.connection.state;
 
-    if (connectionState is Connecting) {
-      debugger("WebSocket Connection...");
-      stream.add("trying");
-      setSocketType(WebSocketType.trying);
-    } else if (connectionState is Connected) {
+    if (connectionState is Connected) {
       debugger("WebSocket Connected");
       stream.add("connected");
       setSocketType(WebSocketType.connected);
-    } else if (connectionState is Reconnecting) {
+    }
+
+    if (connectionState is Reconnecting) {
       debugger("WebSocket Reconnecting...");
-      stream.add("trying");
       setSocketType(WebSocketType.trying);
-    } else if (connectionState is Disconnected) {
+      initialize(url: _url!, token: _token!);
+    }
+
+    if (connectionState is Disconnected) {
       debugger("WebSocket Disconnected");
       stream.add("disconnected");
       setSocketType(WebSocketType.disconnected);
       initialize(url: _url!, token: _token!);
-    } else if (connectionState is Reconnected) {
+    }
+
+    if (connectionState is Reconnected) {
       debugger("WebSocket Reconnected");
       stream.add("connected");
       setSocketType(WebSocketType.connected);
-    } else {
-      debugger("WebSocket Unknown State: $connectionState");
-      stream.add("unknown");
-      setSocketType(WebSocketType.disconnected);
+      initialize(url: _url!, token: _token!);
     }
   }
 
@@ -126,6 +127,7 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
     _controller?.close();
     _isClosed = true;
     _controller = null;
+    _timer?.cancel();
   }
 
   @override
@@ -154,6 +156,7 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
 
   @override
   void dispose() {
+    _timer?.cancel();
     closeSection();
     super.dispose();
   }
