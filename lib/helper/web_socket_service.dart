@@ -1,7 +1,9 @@
 import 'dart:async';
-import 'dart:developer';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' show Colors;
+import 'package:log_print/log_print.dart';
 import 'package:manager_api/helper/web_socket_manager.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:web_socket_client/web_socket_client.dart';
@@ -49,10 +51,20 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
       _controller!.connection.listen((state) => checkConnection(state));
 
       _controller!.messages.listen((event) {
-        debugger("Recebendo dados do WebSocket: $event");
+        try {
+          if (jsonDecode(event)?['data'] != null) {
+            Map<String, dynamic> result = jsonDecode(event);
+            (result['data'] as Map<String, dynamic>?)
+                ?.removeWhere((key, value) => value == null || value == '');
 
-        stream.add(event);
-        setSocketType(WebSocketType.connected);
+            debugger(result.toString());
+            stream.add(jsonEncode(result));
+          }
+        } catch (_) {
+          debugger("$event");
+          stream.add(event);
+          setSocketType(WebSocketType.connected);
+        }
       }, onDone: () {
         stream.add("disconnected");
         setSocketType(WebSocketType.disconnected);
@@ -71,27 +83,32 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   void checkConnection(ConnectionState state) {
     if (_controller == null || _isClosed) return;
 
+    if (state is Connecting) {
+      debugger("Connecting... $_url");
+      setSocketType(WebSocketType.trying);
+    }
+
     if (state is Connected) {
-      debugger("WebSocket Connected");
+      debugger("Connected... $_url");
       stream.add("connected");
       setSocketType(WebSocketType.connected);
     }
 
     if (state is Reconnecting) {
-      debugger("WebSocket Reconnecting...");
+      debugger("Reconnecting... $_url");
       setSocketType(WebSocketType.trying);
     }
 
-    if (state is Disconnected) {
-      debugger("WebSocket Disconnected");
-      stream.add("disconnected");
-      setSocketType(WebSocketType.disconnected);
-    }
-
     if (state is Reconnected) {
-      debugger("WebSocket Reconnected");
+      debugger("Reconnected... $_url");
       stream.add("connected");
       setSocketType(WebSocketType.connected);
+    }
+
+    if (state is Disconnected) {
+      debugger("Disconnected... $_url");
+      stream.add("disconnected");
+      setSocketType(WebSocketType.disconnected);
     }
   }
 
@@ -103,7 +120,7 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
 
   @override
   void closeSection() {
-    debugger("WebSocket Disconnected $_url");
+    debugger("Disconnected $_url");
     stream.add("disconnected");
     setSocketType(WebSocketType.disconnected);
 
@@ -133,7 +150,13 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
 
   @override
   void debugger(String name) {
-    return log(name, name: "WEBSOCKET");
+    LogPrint(
+      name,
+      type: LogPrintType.custom,
+      title: "WebSocket",
+      titleBackgroundColor: Colors.greenAccent,
+      messageColor: Colors.green,
+    );
   }
 
   @override
