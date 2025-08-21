@@ -11,8 +11,6 @@ import 'package:web_socket_client/web_socket_client.dart';
 enum WebSocketType { connected, disconnected, trying }
 
 class WebSocketService extends WebSocketManager with ChangeNotifier {
-  bool _isClosed = false;
-
   WebSocket? _controller;
   @override
   WebSocket? get controller => _controller;
@@ -33,8 +31,6 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
     required String token,
   }) async {
     _url = url;
-    if (_isClosed) return false;
-
     setSocketType(WebSocketType.trying);
 
     try {
@@ -81,8 +77,6 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
 
   @override
   void checkConnection(ConnectionState state) {
-    if (_controller == null || _isClosed) return;
-
     if (state is Connecting) {
       debugger("Connecting... $_url");
       setSocketType(WebSocketType.trying);
@@ -114,18 +108,15 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
 
   @override
   void sendMessage(String message) {
-    if (_controller == null || _isClosed) return;
-    _controller!.send(message);
+    _controller?.send(message);
   }
 
   @override
   void closeSection() {
-    debugger("Disconnected $_url");
     stream.add("disconnected");
     setSocketType(WebSocketType.disconnected);
 
     _controller?.close();
-    _isClosed = true;
     _controller = null;
   }
 
