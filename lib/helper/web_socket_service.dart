@@ -5,103 +5,147 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show Colors;
 import 'package:log_print/log_print.dart';
 import 'package:manager_api/helper/web_socket_manager.dart';
+import 'package:manager_api/models/resultlr/resultlr.dart';
+import 'package:manager_api/utils/timer_utils.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:web_socket_client/web_socket_client.dart';
 
-enum WebSocketType { connected, disconnected, trying }
+enum WebSocketType {
+  connected(slug: "connected"),
+  disconnected(slug: "disconnected"),
+  disconnecting(slug: "disconnecting"),
+  connecting(slug: "connecting"),
+  reconnected(slug: "reconnected"),
+  reconnecting(slug: "reconnecting");
+
+  final String? slug;
+  const WebSocketType({this.slug});
+
+  bool get isConnected => this == WebSocketType.connected;
+  bool get isDisconnected => this == WebSocketType.disconnected;
+  bool get isDisconnecting => this == WebSocketType.disconnecting;
+  bool get isConnecting => this == WebSocketType.connecting;
+  bool get isReconnected => this == WebSocketType.reconnected;
+  bool get isReconnecting => this == WebSocketType.reconnecting;
+}
 
 class WebSocketService extends WebSocketManager with ChangeNotifier {
+  final TimerUtils _socketTimer = TimerUtils();
+  Completer<bool> _completer = Completer<bool>();
+
+  BehaviorSubject<ResultLR<WebSocketType, dynamic>>? _stream;
+  @override
+  BehaviorSubject<ResultLR<WebSocketType, dynamic>>? get stream => _stream;
+
+  String? _id;
+  @override
+  String? get id => _id;
+
+  String? _type;
+  @override
+  String? get type => _type;
+
   WebSocket? _controller;
   @override
   WebSocket? get controller => _controller;
 
   String? _url;
 
-  WebSocketType _socketType = WebSocketType.trying;
+  WebSocketType _socketType = WebSocketType.connecting;
   @override
   WebSocketType get socketType => _socketType;
 
-  WebSocketService({BehaviorSubject<dynamic>? stream}) {
-    super.stream = stream ?? BehaviorSubject();
+  WebSocketService({
+    required String type,
+    BehaviorSubject<ResultLR<WebSocketType, dynamic>>? stream,
+    String? id,
+  }) {
+    _id = id ?? DateTime.now().millisecondsSinceEpoch.toString();
+    _type = type;
+    _stream = stream ?? BehaviorSubject<ResultLR<WebSocketType, dynamic>>();
   }
 
   @override
-  Future<bool> initialize({
+  Future<void> initialize({
     required String url,
     required String token,
   }) async {
-    _url = url;
-    setSocketType(WebSocketType.trying);
+    _completer = Completer<bool>();
 
-    try {
-      String beforeString = url.contains("?") ? "&" : "?";
+    _socketTimer.updateWithTimer(() async {
+      try {
+        _url = url;
 
-      _controller?.close();
-      _controller = null;
-      _controller = WebSocket(
-        Uri.parse("$url${beforeString}token=$token"),
-        backoff: ConstantBackoff(Duration(seconds: 5)),
-        pingInterval: Duration(seconds: 5),
-      );
+        await closeSection();
+        setSocketType(WebSocketType.connecting);
 
-      _controller!.connection.listen((state) => checkConnection(state));
+        String beforeString = url.contains("?") ? "&" : "?";
 
-      _controller!.messages.listen((event) {
-        try {
-          if (jsonDecode(event)?['data'] != null) {
-            Map<String, dynamic> result = jsonDecode(event);
-            (result['data'] as Map<String, dynamic>?)
-                ?.removeWhere((key, value) => value == null || value == '');
+        _controller = WebSocket(
+          Uri.parse("$url${beforeString}token=$token"),
+          backoff: ConstantBackoff(Duration(seconds: 5)),
+          pingInterval: Duration(seconds: 5),
+        );
 
-            debugger(result.toString());
-            stream.add(jsonEncode(result));
+        _controller!.connection.listen((state) => checkConnection(state));
+
+        _controller!.messages.listen((event) {
+          try {
+            if (jsonDecode(event)?['data'] != null) {
+              Map<String, dynamic> result = jsonDecode(event);
+              (result['data'] as Map<String, dynamic>?)
+                  ?.removeWhere((key, value) => value == null || value == '');
+
+              debugger(result.toString());
+              _stream?.add(Right(jsonEncode(result)));
+            }
+          } catch (_) {
+            debugger("$event");
+            _stream?.add(Right(event));
+            setSocketType(WebSocketType.connected);
           }
-        } catch (_) {
-          debugger("$event");
-          stream.add(event);
-          setSocketType(WebSocketType.connected);
-        }
-      }, onDone: () {
-        stream.add("disconnected");
+        });
+      } catch (e) {
+        debugger("WebSocket Error: $e");
         setSocketType(WebSocketType.disconnected);
-      });
-    } catch (e) {
-      debugger("WebSocket Error: $e");
-      stream.add("disconnected");
-      setSocketType(WebSocketType.disconnected);
-      return false;
-    }
+      }
 
-    return _controller != null;
+      _completer.complete(true);
+    }, duration: Duration(seconds: 1));
+
+    await _completer.future;
+    return;
   }
 
   @override
-  void checkConnection(ConnectionState state) {
+  void checkConnection(ConnectionState state) async {
     if (state is Connecting) {
       debugger("Connecting... $_url");
-      setSocketType(WebSocketType.trying);
+      setSocketType(WebSocketType.connecting);
     }
 
     if (state is Connected) {
       debugger("Connected... $_url");
-      stream.add("connected");
       setSocketType(WebSocketType.connected);
     }
 
     if (state is Reconnecting) {
       debugger("Reconnecting... $_url");
-      setSocketType(WebSocketType.trying);
+      setSocketType(WebSocketType.reconnecting);
     }
 
     if (state is Reconnected) {
       debugger("Reconnected... $_url");
-      stream.add("connected");
-      setSocketType(WebSocketType.connected);
+      setSocketType(WebSocketType.reconnected);
+    }
+
+    if (state is Disconnecting) {
+      debugger("Disconnecting... $_url");
+      setSocketType(WebSocketType.disconnecting);
     }
 
     if (state is Disconnected) {
       debugger("Disconnected... $_url");
-      stream.add("disconnected");
       setSocketType(WebSocketType.disconnected);
     }
   }
@@ -112,39 +156,32 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   }
 
   @override
-  void closeSection() {
-    stream.add("disconnected");
+  Future<void> closeSection() async {
     setSocketType(WebSocketType.disconnected);
 
     _controller?.close();
     _controller = null;
-  }
 
-  @override
-  Future<bool> create({
-    required String url,
-    required String token,
-  }) async {
-    bool success = await initialize(
-      url: url,
-      token: token,
-    );
-
-    return success;
+    _stream?.close();
+    _stream = BehaviorSubject<ResultLR<WebSocketType, dynamic>>();
   }
 
   @override
   void setSocketType(WebSocketType value) {
     _socketType = value;
     notifyListeners();
+
+    _stream?.add(Left(value));
   }
 
   @override
   void debugger(String name) {
+    if (kReleaseMode) return;
+
     LogPrint(
       name,
       type: LogPrintType.custom,
-      title: "WebSocket",
+      title: "WebSocket $_type",
       titleBackgroundColor: Colors.greenAccent,
       messageColor: Colors.green,
     );

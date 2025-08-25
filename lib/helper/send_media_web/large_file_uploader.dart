@@ -57,7 +57,7 @@ class LargeFileUploader {
   }
 
   void _handleCallbacks(
-    data, {
+    dynamic data, {
     required UploadProgressListener onSendProgress,
     UploadFailureListener? onFailure,
     UploadCompleteListener? onComplete,

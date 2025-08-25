@@ -1,16 +1,19 @@
 import 'package:manager_api/helper/web_socket_service.dart';
+import 'package:manager_api/models/resultlr/resultlr.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:web_socket_client/web_socket_client.dart';
 
 abstract class WebSocketManager {
-  late BehaviorSubject<dynamic> stream;
-  WebSocketType get socketType;
+  BehaviorSubject<ResultLR<WebSocketType, dynamic>>? get stream;
+  String? get id;
+  String? get type;
 
+  WebSocketType get socketType;
   WebSocket? get controller;
 
-  WebSocketManager({BehaviorSubject<dynamic>? stream});
+  WebSocketManager();
 
-  Future<bool> initialize({
+  Future<void> initialize({
     required String url,
     required String token,
   });
@@ -18,11 +21,7 @@ abstract class WebSocketManager {
   void sendMessage(String message);
 
   void checkConnection(ConnectionState state);
-  void closeSection();
-  Future<bool> create({
-    required String url,
-    required String token,
-  });
+  Future<void> closeSection();
   void setSocketType(WebSocketType value);
   void debugger(String name);
   void dispose();
