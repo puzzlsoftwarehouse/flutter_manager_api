@@ -16,6 +16,7 @@ abstract class WebSocketManager {
   Future<void> initialize({
     required String url,
     required String token,
+    Duration duration = const Duration(seconds: 1),
   });
 
   void sendMessage(String message);

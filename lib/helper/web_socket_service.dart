@@ -69,6 +69,7 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   Future<void> initialize({
     required String url,
     required String token,
+    Duration duration = const Duration(seconds: 1),
   }) async {
     _completer = Completer<bool>();
 
@@ -111,7 +112,7 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
       }
 
       _completer.complete(true);
-    }, duration: Duration(seconds: 1));
+    }, duration: duration);
 
     await _completer.future;
     return;
