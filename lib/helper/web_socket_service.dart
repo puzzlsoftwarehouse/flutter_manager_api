@@ -1,41 +1,32 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart' show Colors;
+import 'package:flutter/material.dart';
 import 'package:log_print/log_print.dart';
 import 'package:manager_api/helper/web_socket_manager.dart';
-import 'package:manager_api/models/resultlr/resultlr.dart';
-import 'package:manager_api/utils/timer_utils.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:rxdart/rxdart.dart';
-import 'package:web_socket_client/web_socket_client.dart';
 
 enum WebSocketType {
-  connected(slug: "connected"),
-  disconnected(slug: "disconnected"),
-  disconnecting(slug: "disconnecting"),
-  connecting(slug: "connecting"),
-  reconnected(slug: "reconnected"),
-  reconnecting(slug: "reconnecting");
-
-  final String? slug;
-  const WebSocketType({this.slug});
+  connected,
+  disconnected,
+  disconnecting,
+  connecting,
+  reconnecting,
+  reconnected;
 
   bool get isConnected => this == WebSocketType.connected;
   bool get isDisconnected => this == WebSocketType.disconnected;
-  bool get isDisconnecting => this == WebSocketType.disconnecting;
   bool get isConnecting => this == WebSocketType.connecting;
-  bool get isReconnected => this == WebSocketType.reconnected;
   bool get isReconnecting => this == WebSocketType.reconnecting;
+  bool get isReconnected => this == WebSocketType.reconnected;
 }
 
 class WebSocketService extends WebSocketManager with ChangeNotifier {
-  final TimerUtils _socketTimer = TimerUtils();
-  Completer<bool> _completer = Completer<bool>();
-
-  BehaviorSubject<ResultLR<WebSocketType, dynamic>>? _stream;
-  @override
-  BehaviorSubject<ResultLR<WebSocketType, dynamic>>? get stream => _stream;
+  bool _isClosed = false;
+  bool enablePing = true;
 
   String? _id;
   @override
@@ -45,134 +36,167 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   @override
   String? get type => _type;
 
-  WebSocket? _controller;
+  WebSocketChannel? _controller;
   @override
-  WebSocket? get controller => _controller;
+  WebSocketChannel? get controller => _controller;
 
   String? _url;
+  String? _token;
+
+  Timer? _timer;
+
+  bool _pong = false;
 
   WebSocketType _socketType = WebSocketType.connecting;
   @override
   WebSocketType get socketType => _socketType;
 
-  WebSocketService({
-    required String type,
-    BehaviorSubject<ResultLR<WebSocketType, dynamic>>? stream,
-    String? id,
-  }) {
+  bool _needReconnect = false;
+
+  WebSocketService(
+      {String? id,
+      required String type,
+      BehaviorSubject<SocketEvent>? stream}) {
     _id = id ?? DateTime.now().millisecondsSinceEpoch.toString();
     _type = type;
-    _stream = stream ?? BehaviorSubject<ResultLR<WebSocketType, dynamic>>();
+    super.stream = stream ?? BehaviorSubject<SocketEvent>();
   }
 
   @override
-  Future<void> initialize({
+  Future<bool> initialize({
     required String url,
     required String token,
-    Duration duration = const Duration(seconds: 1),
+    bool enablePing = true,
   }) async {
-    _completer = Completer<bool>();
+    this.enablePing = enablePing;
 
-    _socketTimer.updateWithTimer(() async {
-      try {
-        _url = url;
+    _url = url;
+    _token = token;
 
-        await closeSection();
-        setSocketType(WebSocketType.connecting);
+    if (_isClosed) return false;
 
-        String beforeString = url.contains("?") ? "&" : "?";
+    setSocketType(WebSocketType.connecting);
 
-        _controller = WebSocket(
-          Uri.parse("$url${beforeString}token=$token"),
-          backoff: ConstantBackoff(Duration(seconds: 5)),
-          pingInterval: Duration(seconds: 5),
-        );
+    try {
+      String beforeString = url.contains("?") ? "&" : "?";
 
-        _controller!.connection.listen((state) => checkConnection(state));
+      _controller?.sink.close();
+      _controller = null;
+      _controller = WebSocketChannel.connect(
+          Uri.parse("$url${beforeString}token=$token"));
 
-        _controller!.messages.listen((event) {
-          try {
-            if (jsonDecode(event)?['data'] != null) {
-              Map<String, dynamic> result = jsonDecode(event);
-              (result['data'] as Map<String, dynamic>?)
-                  ?.removeWhere((key, value) => value == null || value == '');
+      checkConnection();
 
-              debugger(result.toString());
-              _stream?.add(Right(jsonEncode(result)));
-            }
-          } catch (_) {
-            debugger("$event");
-            _stream?.add(Right(event));
-            setSocketType(WebSocketType.connected);
+      _controller!.stream.listen((event) {
+        if (jsonDecode(event)['type'] == "pong") {
+          _pong = true;
+          if (_needReconnect) {
+            _needReconnect = false;
+            stream.add(ConnectionEvent(WebSocketType.reconnected));
           }
-        });
-      } catch (e) {
-        debugger("WebSocket Error: $e");
+          return;
+        }
+        debugger(event.toString());
+        stream.add(MessageEvent(event));
+        setSocketType(WebSocketType.connected);
+      }, onDone: () {
+        stream.add(ConnectionEvent(WebSocketType.disconnected));
         setSocketType(WebSocketType.disconnected);
-      }
+      });
+    } catch (e) {
+      debugger("WebSocket Error: $e");
+      stream.add(ConnectionEvent(WebSocketType.disconnected));
+      setSocketType(WebSocketType.disconnected);
+      checkConnection();
+      return false;
+    }
 
-      _completer.complete(true);
-    }, duration: duration);
-
-    await _completer.future;
-    return;
+    debugger("WebSocket Connected: ${_controller != null}");
+    stream.add(ConnectionEvent(WebSocketType.connected));
+    setSocketType(WebSocketType.connected);
+    return _controller != null;
   }
 
   @override
-  void checkConnection(ConnectionState state) async {
-    if (state is Connecting) {
-      debugger("Connecting... $_url");
-      setSocketType(WebSocketType.connecting);
-    }
+  void checkConnection() {
+    if (!enablePing) return;
+    if (_controller == null || _isClosed) return;
 
-    if (state is Connected) {
-      debugger("Connected... $_url");
-      setSocketType(WebSocketType.connected);
-    }
+    _timer?.cancel();
+    _timer = Timer.periodic(Duration(seconds: 10), (timer) {
+      if (_controller == null) {
+        _cancelTimer();
+        return;
+      }
+      if (!enablePing) {
+        _cancelTimer();
+        return;
+      }
 
-    if (state is Reconnecting) {
-      debugger("Reconnecting... $_url");
-      setSocketType(WebSocketType.reconnecting);
-    }
+      _controller!.sink.add(jsonEncode({"type": "ping"}));
+      _pong = false;
 
-    if (state is Reconnected) {
-      debugger("Reconnected... $_url");
-      setSocketType(WebSocketType.reconnected);
-    }
+      Future.delayed(Duration(seconds: 5), () {
+        if (!_pong && !_isClosed) {
+          if (_url == null || _token == null) return;
+          debugger("WebSocket Disconnected  Don`t have pong");
+          stream.add(ConnectionEvent(WebSocketType.disconnected));
+          setSocketType(WebSocketType.disconnected);
 
-    if (state is Disconnecting) {
-      debugger("Disconnecting... $_url");
-      setSocketType(WebSocketType.disconnecting);
-    }
-
-    if (state is Disconnected) {
-      debugger("Disconnected... $_url");
-      setSocketType(WebSocketType.disconnected);
-    }
+          _cancelTimer();
+          _needReconnect = true;
+          initialize(url: _url!, token: _token!);
+          return;
+        }
+        if (_isClosed) {
+          _cancelTimer();
+        }
+      });
+    });
   }
 
   @override
   void sendMessage(String message) {
-    _controller?.send(message);
+    if (_controller == null || _isClosed) return;
+    _controller!.sink.add(message);
   }
 
   @override
-  Future<void> closeSection() async {
+  void closeSection() {
+    debugger("WebSocket Disconnected $_url");
+    stream.add(ConnectionEvent(WebSocketType.disconnected));
     setSocketType(WebSocketType.disconnected);
 
-    _controller?.close();
+    _controller?.sink.close();
+    _isClosed = true;
+    _cancelTimer();
     _controller = null;
+  }
 
-    _stream?.close();
-    _stream = BehaviorSubject<ResultLR<WebSocketType, dynamic>>();
+  void _cancelTimer() {
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  @override
+  Future<bool> create({
+    required String url,
+    required String token,
+    bool enablePing = true,
+  }) async {
+    bool success = await initialize(
+      url: url,
+      token: token,
+      enablePing: enablePing,
+    );
+
+    return success;
   }
 
   @override
   void setSocketType(WebSocketType value) {
     _socketType = value;
     notifyListeners();
-
-    _stream?.add(Left(value));
   }
 
   @override
@@ -190,6 +214,7 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
 
   @override
   void dispose() {
+    _timer?.cancel();
     closeSection();
     super.dispose();
   }

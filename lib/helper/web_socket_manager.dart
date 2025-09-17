@@ -1,28 +1,44 @@
 import 'package:manager_api/helper/web_socket_service.dart';
-import 'package:manager_api/models/resultlr/resultlr.dart';
 import 'package:rxdart/rxdart.dart';
-import 'package:web_socket_client/web_socket_client.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+
+abstract class SocketEvent {}
+
+class MessageEvent extends SocketEvent {
+  final dynamic message;
+  MessageEvent(this.message);
+}
+
+class ConnectionEvent extends SocketEvent {
+  final WebSocketType type;
+  ConnectionEvent(this.type);
+}
 
 abstract class WebSocketManager {
-  BehaviorSubject<ResultLR<WebSocketType, dynamic>>? get stream;
+  late BehaviorSubject<SocketEvent> stream;
   String? get id;
   String? get type;
-
   WebSocketType get socketType;
-  WebSocket? get controller;
 
-  WebSocketManager();
+  WebSocketChannel? get controller;
 
-  Future<void> initialize({
+  WebSocketManager({BehaviorSubject<SocketEvent>? stream});
+
+  Future<bool> initialize({
     required String url,
     required String token,
-    Duration duration = const Duration(seconds: 1),
+    bool enablePing = true,
   });
 
   void sendMessage(String message);
 
-  void checkConnection(ConnectionState state);
-  Future<void> closeSection();
+  void checkConnection();
+  void closeSection();
+  Future<bool> create({
+    required String url,
+    required String token,
+    bool enablePing = true,
+  });
   void setSocketType(WebSocketType value);
   void debugger(String name);
   void dispose();
