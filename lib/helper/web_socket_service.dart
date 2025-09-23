@@ -5,23 +5,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:log_print/log_print.dart';
 import 'package:manager_api/helper/web_socket_manager.dart';
+import 'package:manager_api/models/websocket/web_socket_type.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:rxdart/rxdart.dart';
-
-enum WebSocketType {
-  connected,
-  disconnected,
-  disconnecting,
-  connecting,
-  reconnecting,
-  reconnected;
-
-  bool get isConnected => this == WebSocketType.connected;
-  bool get isDisconnected => this == WebSocketType.disconnected;
-  bool get isConnecting => this == WebSocketType.connecting;
-  bool get isReconnecting => this == WebSocketType.reconnecting;
-  bool get isReconnected => this == WebSocketType.reconnected;
-}
 
 class WebSocketService extends WebSocketManager with ChangeNotifier {
   bool _isClosed = false;

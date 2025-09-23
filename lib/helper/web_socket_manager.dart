@@ -1,4 +1,4 @@
-import 'package:manager_api/helper/web_socket_service.dart';
+import 'package:manager_api/models/websocket/web_socket_type.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
