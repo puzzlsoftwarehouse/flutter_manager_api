@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:developer';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -140,6 +139,8 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
         if (!_pong && !_isClosed) {
           if (_url == null || _token == null) return;
           debugger("WebSocket Disconnected  Don`t have pong");
+
+          _controller?.sink.close();
           stream.add(ConnectionEvent(WebSocketType.disconnected));
           setSocketType(WebSocketType.disconnected);
 
