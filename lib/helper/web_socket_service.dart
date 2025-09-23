@@ -38,10 +38,11 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
 
   bool _needReconnect = false;
 
-  WebSocketService(
-      {String? id,
-      required String type,
-      BehaviorSubject<SocketEvent>? stream}) {
+  WebSocketService({
+    String? id,
+    required String type,
+    BehaviorSubject<SocketEvent>? stream,
+  }) {
     _id = id ?? DateTime.now().millisecondsSinceEpoch.toString();
     _type = type;
     super.stream = stream ?? BehaviorSubject<SocketEvent>();
