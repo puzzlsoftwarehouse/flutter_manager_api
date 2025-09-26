@@ -25,6 +25,8 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   @override
   WebSocketChannel? get controller => _controller;
 
+  Timer? _timerOfConfirmationHasConnected;
+
   String? _url;
   String? _token;
 
@@ -86,21 +88,41 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
         stream.add(MessageEvent(event));
         setSocketType(WebSocketType.connected);
       }, onDone: () {
-        stream.add(ConnectionEvent(WebSocketType.disconnected));
-        setSocketType(WebSocketType.disconnected);
+        disconnect();
       });
     } catch (e) {
       debugger("WebSocket Error: $e");
-      stream.add(ConnectionEvent(WebSocketType.disconnected));
-      setSocketType(WebSocketType.disconnected);
+      disconnect();
       checkConnection();
       return false;
     }
-
-    debugger("WebSocket Connected: ${_controller != null}");
-    stream.add(ConnectionEvent(WebSocketType.connected));
-    setSocketType(WebSocketType.connected);
+    connecting();
+    confirmationOfConnection();
     return _controller != null;
+  }
+
+  void disconnect() {
+    debugger("WebSocket Disconnected $_url");
+    stream.add(ConnectionEvent(WebSocketType.disconnected));
+    setSocketType(WebSocketType.disconnected);
+
+    _timerOfConfirmationHasConnected?.cancel();
+    _timerOfConfirmationHasConnected = null;
+  }
+
+  void connecting() {
+    debugger("WebSocket Connecting: ${_controller != null}");
+    stream.add(ConnectionEvent(WebSocketType.connecting));
+    setSocketType(WebSocketType.connecting);
+  }
+
+  void confirmationOfConnection() {
+    _timerOfConfirmationHasConnected?.cancel();
+    _timerOfConfirmationHasConnected = Timer(Duration(seconds: 1), () {
+      debugger("WebSocket Connected: ${_controller != null}");
+      stream.add(ConnectionEvent(WebSocketType.connected));
+      setSocketType(WebSocketType.connected);
+    });
   }
 
   @override
@@ -128,8 +150,7 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
           debugger("WebSocket Disconnected  Don`t have pong");
 
           _controller?.sink.close();
-          stream.add(ConnectionEvent(WebSocketType.disconnected));
-          setSocketType(WebSocketType.disconnected);
+          disconnect();
 
           _cancelTimer();
           _needReconnect = true;
@@ -151,9 +172,7 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
 
   @override
   void closeSection() {
-    debugger("WebSocket Disconnected $_url");
-    stream.add(ConnectionEvent(WebSocketType.disconnected));
-    setSocketType(WebSocketType.disconnected);
+    disconnect();
 
     _controller?.sink.close();
     _isClosed = true;
