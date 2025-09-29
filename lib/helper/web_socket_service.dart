@@ -28,7 +28,7 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   Timer? _timerOfConfirmationHasConnected;
 
   String? _url;
-  String? _token;
+  Map<String, dynamic>? _parameters;
 
   Timer? _timer;
 
@@ -53,25 +53,28 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   @override
   Future<bool> initialize({
     required String url,
-    required String token,
+    Map<String, dynamic>? parameters,
     bool enablePing = true,
   }) async {
     this.enablePing = enablePing;
 
     _url = url;
-    _token = token;
+    _parameters = parameters;
 
     if (_isClosed) return false;
 
     setSocketType(WebSocketType.connecting);
 
     try {
-      String beforeString = url.contains("?") ? "&" : "?";
-
       _controller?.sink.close();
       _controller = null;
-      _controller = WebSocketChannel.connect(
-          Uri.parse("$url${beforeString}token=$token"));
+      Uri uri = Uri.parse(url);
+      final Map<String, dynamic> queryParameters = {
+        ...uri.queryParameters,
+        ...?parameters
+      };
+      uri = uri.replace(queryParameters: queryParameters);
+      _controller = WebSocketChannel.connect(uri);
 
       checkConnection();
 
@@ -148,7 +151,7 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
 
       Future.delayed(Duration(seconds: 5), () {
         if (!_pong && !_isClosed) {
-          if (_url == null || _token == null) return;
+          if (_url == null) return;
           if (!_needReconnect) {
             debugger("WebSocket  Don`t have pong");
 
@@ -158,7 +161,10 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
 
           _cancelTimer();
           _needReconnect = true;
-          initialize(url: _url!, token: _token!);
+          initialize(
+            url: _url!,
+            parameters: _parameters ?? <String, dynamic>{},
+          );
           return;
         }
         if (_isClosed) {
@@ -192,13 +198,14 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   @override
   Future<bool> create({
     required String url,
-    required String token,
+    Map<String, dynamic>? parameters,
     bool enablePing = true,
   }) async {
+    _parameters = parameters;
     bool success = await initialize(
       url: url,
-      token: token,
       enablePing: enablePing,
+      parameters: parameters,
     );
 
     return success;

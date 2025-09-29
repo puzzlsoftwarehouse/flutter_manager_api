@@ -26,8 +26,8 @@ abstract class WebSocketManager {
 
   Future<bool> initialize({
     required String url,
-    required String token,
     bool enablePing = true,
+    Map<String, dynamic>? parameters,
   });
 
   void sendMessage(String message);
@@ -36,8 +36,8 @@ abstract class WebSocketManager {
   void closeSection();
   Future<bool> create({
     required String url,
-    required String token,
     bool enablePing = true,
+    Map<String, dynamic>? parameters,
   });
   void setSocketType(WebSocketType value);
   void debugger(String name);
