@@ -78,10 +78,6 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
       _controller!.stream.listen((event) {
         if (jsonDecode(event)['type'] == "pong") {
           _pong = true;
-          if (_needReconnect) {
-            _needReconnect = false;
-            stream.add(ConnectionEvent(WebSocketType.reconnected));
-          }
           return;
         }
         debugger(event.toString());
@@ -111,7 +107,7 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   }
 
   void connecting() {
-    debugger("WebSocket Connecting: ${_controller != null}");
+    debugger("WebSocket Connecting: $_url");
     stream.add(ConnectionEvent(WebSocketType.connecting));
     setSocketType(WebSocketType.connecting);
   }
@@ -119,7 +115,13 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   void confirmationOfConnection() {
     _timerOfConfirmationHasConnected?.cancel();
     _timerOfConfirmationHasConnected = Timer(Duration(seconds: 1), () {
-      debugger("WebSocket Connected: ${_controller != null}");
+      if (_needReconnect) {
+        debugger("WebSocket Reconnected: $_url");
+        _needReconnect = false;
+        stream.add(ConnectionEvent(WebSocketType.reconnected));
+        return;
+      }
+      debugger("WebSocket Connected: $_url");
       stream.add(ConnectionEvent(WebSocketType.connected));
       setSocketType(WebSocketType.connected);
     });
@@ -147,10 +149,12 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
       Future.delayed(Duration(seconds: 5), () {
         if (!_pong && !_isClosed) {
           if (_url == null || _token == null) return;
-          debugger("WebSocket Disconnected  Don`t have pong");
+          if (!_needReconnect) {
+            debugger("WebSocket  Don`t have pong");
 
-          _controller?.sink.close();
-          disconnect();
+            _controller?.sink.close();
+            disconnect();
+          }
 
           _cancelTimer();
           _needReconnect = true;
