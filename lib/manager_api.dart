@@ -271,6 +271,7 @@ class ManagerAPI with ManagerToken {
         responseType: request.bodyResponseType == RequestResponseBodyType.bytes
             ? ResponseType.bytes
             : ResponseType.json,
+        timeout: request.timeOutDuration,
       );
     }
 
@@ -279,6 +280,7 @@ class ManagerAPI with ManagerToken {
         url: request.url,
         headers: getCorrectHeaders(restRequest: request),
         body: request.body,
+        timeout: request.timeOutDuration,
       );
     }
 

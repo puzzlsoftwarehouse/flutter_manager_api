@@ -8,12 +8,13 @@ import 'package:manager_api/helper/send_media_web/send_media_web.dart';
 import 'package:rxdart/rxdart.dart';
 
 class RestHelper {
-  static const Duration _defaultTimeout = Duration(seconds: 15);
+  static const Duration _defaultTimeout = Duration(minutes: 1);
 
   Future<Map<String, dynamic>> getRequest({
     required String url,
     Map<String, String>? headers = const {},
     ResponseType? responseType,
+    Duration? timeout,
   }) async {
     return await tryRequest(() async {
       Response response = await Dio()
@@ -24,7 +25,7 @@ class RestHelper {
               responseType: responseType ?? ResponseType.json,
             ),
           )
-          .timeout(_defaultTimeout);
+          .timeout(timeout ?? _defaultTimeout);
 
       bool isSuccess = response.statusCode == 200;
       if (isSuccess) return _successData(response);
@@ -40,6 +41,7 @@ class RestHelper {
     required String url,
     Map? body,
     Map<String, String>? headers = const {},
+    Duration? timeout,
   }) async {
     return await tryRequest(() async {
       Response response = await Dio()
@@ -50,7 +52,7 @@ class RestHelper {
             ),
             data: body,
           )
-          .timeout(_defaultTimeout);
+          .timeout(timeout ?? _defaultTimeout);
 
       bool isSuccess = response.statusCode == 200;
       if (isSuccess) return _successData(response);
