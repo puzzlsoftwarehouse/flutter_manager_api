@@ -10,15 +10,15 @@ class GraphQLRead {
         RegExp(r'fragment\s+' + fragmentName + r'\s+on\s+\w+\s*\{');
     Iterable<RegExpMatch> fragmentMatches =
         fragmentRegex.allMatches(fileResult);
-    for (var match in fragmentMatches) {
+    for (RegExpMatch match in fragmentMatches) {
       int fragmentOpen = 0;
       int fragmentClose = 0;
       StringBuffer fragmentBuffer = StringBuffer();
       bool fragmentFirstLine = false;
-      Set<String> nestedFragments = {};
-      
-      final lines = fileResult.split("\n");
-      
+      Set<String> nestedFragments = <String>{};
+
+      final List<String> lines = fileResult.split("\n");
+
       for (String line in lines) {
         if (fragmentFirstLine) {
           fragmentOpen += line.split("{").length - 1;
@@ -35,12 +35,12 @@ class GraphQLRead {
         }
       }
 
-      final fragmentContent = fragmentBuffer.toString();
-      final fragmentLines = fragmentContent.split("\n");
+      final String fragmentContent = fragmentBuffer.toString();
+      final List<String> fragmentLines = fragmentContent.split("\n");
       RegExp fragmentUsageRegex = RegExp(r'\.\.\.\s*(\w+)');
       for (String line in fragmentLines) {
         Iterable<RegExpMatch> matches = fragmentUsageRegex.allMatches(line);
-        for (var nestedMatch in matches) {
+        for (RegExpMatch nestedMatch in matches) {
           if (nestedMatch.group(1) != null &&
               !addedFragments.contains(nestedMatch.group(1))) {
             nestedFragments.add(nestedMatch.group(1)!);
@@ -74,14 +74,14 @@ class GraphQLRead {
     String fileResult = (await rootBundle.loadString(
         'lib/src/services/graphql/${StringConverter.camelCaseToSnakeCase(path)}/${StringConverter.camelCaseToSnakeCase(path)}.graphql'));
 
-    final lines = fileResult.split("\n");
+    final List<String> lines = fileResult.split("\n");
 
     int quantityOpen = 0;
     int quantityClose = 0;
     String stringType = type == RequestGraphQLType.query ? "query" : "mutation";
     bool firstLine = false;
-    Set<String> fragments = {};
-    Set<String> addedFragments = {};
+    Set<String> fragments = <String>{};
+    Set<String> addedFragments = <String>{};
 
     for (String line in lines) {
       RegExp regex = RegExp("$stringType $requestName\\s*" r'(?=[({])');
@@ -97,12 +97,12 @@ class GraphQLRead {
         }
       }
     }
-    
-    final queryContent = lineIncrement.toString();
+
+    final String queryContent = lineIncrement.toString();
     resultBuffer.write(queryContent);
     RegExp fragmentUsageRegex = RegExp(r'\.\.\.\s*(\w+)');
     Iterable<RegExpMatch> matches = fragmentUsageRegex.allMatches(queryContent);
-    for (var match in matches) {
+    for (RegExpMatch match in matches) {
       if (match.group(1) != null) {
         fragments.add(match.group(1)!);
       }
