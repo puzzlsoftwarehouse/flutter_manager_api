@@ -32,6 +32,8 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
 
   Timer? _timer;
 
+  StreamSubscription? _streamSubscription;
+
   bool _pong = false;
 
   WebSocketType _socketType = WebSocketType.connecting;
@@ -66,6 +68,8 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
     setSocketType(WebSocketType.connecting);
 
     try {
+      _streamSubscription?.cancel();
+      _streamSubscription = null;
       _controller?.sink.close();
       _controller = null;
       Uri uri = Uri.parse(url);
@@ -78,7 +82,7 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
 
       checkConnection();
 
-      _controller!.stream.listen((event) {
+      _streamSubscription = _controller!.stream.listen((event) {
         if (jsonDecode(event)['type'] == "pong") {
           _pong = true;
           return;
@@ -184,6 +188,8 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   void closeSection() {
     disconnect();
 
+    _streamSubscription?.cancel();
+    _streamSubscription = null;
     _controller?.sink.close();
     _isClosed = true;
     _cancelTimer();
@@ -233,7 +239,9 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   @override
   void dispose() {
     _timer?.cancel();
+    _timerOfConfirmationHasConnected?.cancel();
     closeSection();
+    stream.close();
     super.dispose();
   }
 }

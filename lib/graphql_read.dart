@@ -10,13 +10,16 @@ class GraphQLRead {
         RegExp(r'fragment\s+' + fragmentName + r'\s+on\s+\w+\s*\{');
     Iterable<RegExpMatch> fragmentMatches =
         fragmentRegex.allMatches(fileResult);
-    for (var match in fragmentMatches) {
+    for (RegExpMatch match in fragmentMatches) {
       int fragmentOpen = 0;
       int fragmentClose = 0;
       StringBuffer fragmentBuffer = StringBuffer();
       bool fragmentFirstLine = false;
-      Set<String> nestedFragments = {};
-      for (String line in fileResult.split("\n")) {
+      Set<String> nestedFragments = <String>{};
+
+      final List<String> lines = fileResult.split("\n");
+
+      for (String line in lines) {
         if (fragmentFirstLine) {
           fragmentOpen += line.split("{").length - 1;
           fragmentClose += line.split("}").length - 1;
@@ -32,18 +35,19 @@ class GraphQLRead {
         }
       }
 
-      // Check for nested fragment usage
-      for (String line in fragmentBuffer.toString().split("\n")) {
-        RegExp fragmentUsageRegex = RegExp(r'\.\.\.\s*(\w+)');
+      final String fragmentContent = fragmentBuffer.toString();
+      final List<String> fragmentLines = fragmentContent.split("\n");
+      RegExp fragmentUsageRegex = RegExp(r'\.\.\.\s*(\w+)');
+      for (String line in fragmentLines) {
         Iterable<RegExpMatch> matches = fragmentUsageRegex.allMatches(line);
-        for (var nestedMatch in matches) {
+        for (RegExpMatch nestedMatch in matches) {
           if (nestedMatch.group(1) != null &&
               !addedFragments.contains(nestedMatch.group(1))) {
             nestedFragments.add(nestedMatch.group(1)!);
           }
         }
       }
-      // Recursively add nested fragments
+
       for (String nestedFragment in nestedFragments) {
         if (!addedFragments.contains(nestedFragment)) {
           String nestedFragmentContent =
@@ -66,20 +70,20 @@ class GraphQLRead {
     required String requestName,
   }) async {
     StringBuffer lineIncrement = StringBuffer();
-    String result = "";
+    StringBuffer resultBuffer = StringBuffer();
     String fileResult = (await rootBundle.loadString(
         'lib/src/services/graphql/${StringConverter.camelCaseToSnakeCase(path)}/${StringConverter.camelCaseToSnakeCase(path)}.graphql'));
+
+    final List<String> lines = fileResult.split("\n");
 
     int quantityOpen = 0;
     int quantityClose = 0;
     String stringType = type == RequestGraphQLType.query ? "query" : "mutation";
     bool firstLine = false;
-    Set<String> fragments = {};
-    Set<String> addedFragments = {};
+    Set<String> fragments = <String>{};
+    Set<String> addedFragments = <String>{};
 
-    for (String line in fileResult.split("\n")) {
-      if (result.isNotEmpty) break;
-
+    for (String line in lines) {
       RegExp regex = RegExp("$stringType $requestName\\s*" r'(?=[({])');
       if (regex.hasMatch(line)) {
         firstLine = true;
@@ -87,34 +91,31 @@ class GraphQLRead {
       if (firstLine) {
         quantityOpen += line.split("{").length - 1;
         quantityClose += line.split("}").length - 1;
+        lineIncrement.writeln(line);
         if (quantityOpen == quantityClose) {
-          lineIncrement.writeln(line);
-          result = lineIncrement.toString();
           break;
         }
-        lineIncrement.writeln(line);
-
-        // Check for fragment usage
       }
     }
+
+    final String queryContent = lineIncrement.toString();
+    resultBuffer.write(queryContent);
     RegExp fragmentUsageRegex = RegExp(r'\.\.\.\s*(\w+)');
-    Iterable<RegExpMatch> matches =
-        fragmentUsageRegex.allMatches(lineIncrement.toString());
-    for (var match in matches) {
+    Iterable<RegExpMatch> matches = fragmentUsageRegex.allMatches(queryContent);
+    for (RegExpMatch match in matches) {
       if (match.group(1) != null) {
         fragments.add(match.group(1)!);
       }
     }
-    // Append fragments to the result
     for (String fragment in fragments) {
       String fragmentContent =
           extractFragment(fragment, fileResult, addedFragments);
       if (!addedFragments.contains(fragment) && fragmentContent.isNotEmpty) {
-        result += "\n$fragmentContent";
+        resultBuffer.writeln(fragmentContent);
         addedFragments.add(fragment);
       }
     }
 
-    return result.trim();
+    return resultBuffer.toString().trim();
   }
 }

@@ -40,7 +40,7 @@ class ManagerAPI with ManagerToken {
     this.headers,
     this.timeOutDuration,
   }) {
-    _failures = DefaultAPIFailures.failures..addAll(failures);
+    _failures = [...DefaultAPIFailures.failures, ...failures];
     managerDefaultAPIFailures = defaultFailures;
     _restAPI = RestHelper();
     _api = GraphQLHelper(timeOutDuration: timeOutDuration);
@@ -65,7 +65,8 @@ class ManagerAPI with ManagerToken {
     List<Failure> failures,
   ) {
     generateLog("GraphQL Error: ${exception.toString()}", isError: true);
-    _failures.addAll(failures);
+    
+    final allFailures = [..._failures, ...failures];
 
     if (exception?.linkException != null) {
       return DefaultAPIFailures.getFailureByCode(
@@ -79,7 +80,7 @@ class ManagerAPI with ManagerToken {
           DefaultAPIFailures.timeoutCode)!;
     }
     Failure? failure =
-        _failures.firstWhereOrNull((failure) => failure.code == exceptionCode);
+        allFailures.firstWhereOrNull((failure) => failure.code == exceptionCode);
 
     return (failure ?? getDefaultFailure(exceptionCode)).copyWith(
         error: exception?.graphqlErrors
@@ -221,7 +222,8 @@ class ManagerAPI with ManagerToken {
     List<Failure> failures,
   ) {
     generateLog("Rest Request Error: ${exception.toString()}", isError: true);
-    _failures.addAll(failures);
+    
+    final allFailures = [..._failures, ...failures];
 
     if (exception['type'] == 'noConnection') {
       return DefaultAPIFailures.getFailureByCode(
@@ -242,7 +244,7 @@ class ManagerAPI with ManagerToken {
     }
 
     Failure? failure =
-        _failures.firstWhereOrNull((failure) => failure.code == code);
+        allFailures.firstWhereOrNull((failure) => failure.code == code);
 
     return failure ??
         getDefaultFailure("${code ?? ""}  ${exception['message']}");
