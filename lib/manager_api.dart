@@ -33,7 +33,7 @@ class ManagerAPI with ManagerToken {
   late GraphQLHelper _api;
   late RestHelper _restAPI;
 
-  List<Failure> _failures = <Failure>[];
+  final List<Failure> _failures;
   Map<String, String>? Function(String? token)? headers;
 
   ManagerAPI({
@@ -41,8 +41,7 @@ class ManagerAPI with ManagerToken {
     List<Failure> failures = const <Failure>[],
     this.headers,
     this.timeOutDuration,
-  }) {
-    _failures = [...DefaultAPIFailures.failures, ...failures];
+  }) : _failures = [...DefaultAPIFailures.failures, ...failures] {
     managerDefaultAPIFailures = defaultFailures;
     _restAPI = RestHelper();
     _api = GraphQLHelper(timeOutDuration: timeOutDuration);
@@ -66,7 +65,7 @@ class ManagerAPI with ManagerToken {
     OperationException? exception,
     List<Failure> failures,
   ) {
-    final allFailures = [..._failures, ...failures];
+    final List<Failure> allFailures = [..._failures, ...failures];
 
     if (exception?.linkException != null) {
       return DefaultAPIFailures.getFailureByCode(
@@ -85,7 +84,7 @@ class ManagerAPI with ManagerToken {
           DefaultAPIFailures.cancelErrorCode)!;
     }
 
-    Failure? failure = allFailures
+    final Failure? failure = allFailures
         .firstWhereOrNull((failure) => failure.code == exceptionCode);
 
     return (failure ?? getDefaultFailure(exceptionCode)).copyWith(
@@ -127,14 +126,14 @@ class ManagerAPI with ManagerToken {
   }
 
   Map<String, String> getCorrectHeaders({
-    GraphQLRequest? request,
+    GraphQLRequest<dynamic>? request,
     RestRequest? restRequest,
   }) {
-    Map<String, String> newResult =
+    final Map<String, String> newResult =
         request?.headers ?? restRequest?.headers ?? <String, String>{};
     newResult.addAll(_headerCustom ?? <String, String>{});
 
-    Map<String, String> actualHeaders =
+    final Map<String, String> actualHeaders =
         headers?.call(request?.token ?? token) ?? <String, String>{};
 
     actualHeaders.addAll(newResult);
@@ -151,13 +150,14 @@ class ManagerAPI with ManagerToken {
     GraphQLCancelToken? cancelToken,
   }) async {
     if (request?['typeAPI'] == 'rest') {
-      Stopwatch stopwatch = Stopwatch()..start();
-      RestRequest requestResult = convertRestRequest(request);
+      final Stopwatch stopwatch = Stopwatch()..start();
+      final RestRequest requestResult = convertRestRequest(request);
       if (requestResult.skipRequest != null) {
         generateLog("REQUEST SKIPPED: ${requestResult.name}", isAlert: true);
         return requestResult.skipRequest!.result;
       }
-      Map<String, dynamic>? result = await getCorrectRestRequest(requestResult);
+      final Map<String, dynamic>? result =
+          await getCorrectRestRequest(requestResult);
       stopwatch.stop();
 
       generateLog(generateMsg(
@@ -171,7 +171,7 @@ class ManagerAPI with ManagerToken {
       return Right(requestResult.returnRequest(result!));
     }
 
-    GraphQLRequest requestResult = convertGraphQLRequest(request);
+    GraphQLRequest<dynamic> requestResult = convertGraphQLRequest(request);
     if (cancelToken != null) {
       requestResult = requestResult.copyWith(cancelToken: cancelToken);
     }
@@ -190,16 +190,17 @@ class ManagerAPI with ManagerToken {
     required GraphQLRequest<dynamic> requestResult,
     int? ignoreCode,
   }) async {
-    Stopwatch stopwatch = Stopwatch()..start();
+    final Stopwatch stopwatch = Stopwatch()..start();
 
     if (ignoreCode != null) {
       requestResult = requestResult.copyWith(errorPolicy: ErrorPolicy.all);
     }
 
-    QueryResult<Object?> result = await getCorrectGraphQLRequest(requestResult);
+    final QueryResult<Object?> result =
+        await getCorrectGraphQLRequest(requestResult);
     stopwatch.stop();
 
-    String? exceptionCode = getException(result.exception?.graphqlErrors);
+    final String? exceptionCode = getException(result.exception?.graphqlErrors);
     if (exceptionCode == "cancelled") {
       generateLog(
         "${generateMsg(requestResult: requestResult, stopwatch: stopwatch)} - [CANCELLED]",
@@ -224,13 +225,14 @@ class ManagerAPI with ManagerToken {
 
     if (result.hasException && ignoreCode != null && result.data != null) {
       if (exceptionCode == ignoreCode.toString()) {
-        dynamic returned = await requestResult.returnRequest(result.data!);
+        final dynamic returned =
+            await requestResult.returnRequest(result.data!);
         return Right(returned);
       }
     }
 
     if (result.data != null && !result.hasException) {
-      dynamic returned = await requestResult.returnRequest(result.data!);
+      final dynamic returned = await requestResult.returnRequest(result.data!);
       return Right(returned);
     }
 
@@ -243,7 +245,7 @@ class ManagerAPI with ManagerToken {
   ) {
     generateLog("Rest Request Error: ${exception.toString()}", isError: true);
 
-    final allFailures = [..._failures, ...failures];
+    final List<Failure> allFailures = [..._failures, ...failures];
 
     if (exception['type'] == 'noConnection') {
       return DefaultAPIFailures.getFailureByCode(
@@ -315,15 +317,15 @@ class ManagerAPI with ManagerToken {
     GraphQLRequest<dynamic>? requestResult,
     Stopwatch? stopwatch,
   }) {
-    final type = requestResult?.type.toString().split(".").last ??
+    final String type = requestResult?.type.toString().split(".").last ??
         restRequest?.type.toString().split(".").last ??
         "".toUpperCase();
 
-    final name = requestResult?.name ?? restRequest?.name ?? "";
-    final variables =
+    final String name = requestResult?.name ?? restRequest?.name ?? "";
+    final Map<String, dynamic> variables =
         requestResult?.variables ?? restRequest?.body ?? <String, dynamic>{};
-    final path = requestResult?.path.toUpperCase() ?? "";
-    final elapsedMs = stopwatch?.elapsedMilliseconds ?? 0;
+    final String path = requestResult?.path.toUpperCase() ?? "";
+    final int elapsedMs = stopwatch?.elapsedMilliseconds ?? 0;
 
     return "[$path] [$type $name] - $variables - ${elapsedMs}ms";
   }
