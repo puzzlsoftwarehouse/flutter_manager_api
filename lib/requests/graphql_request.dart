@@ -1,6 +1,7 @@
 import 'package:graphql/client.dart';
 import 'package:manager_api/models/failure/failure.dart';
 import 'package:manager_api/requests/request_api.dart';
+import 'package:manager_api/utils/graphql_cancel_token.dart';
 
 enum RequestGraphQLType { query, mutation, subscription }
 
@@ -13,6 +14,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
   final Map<String, dynamic> variables;
   final Duration? timeOutDuration;
   final ErrorPolicy? errorPolicy;
+  final GraphQLCancelToken? cancelToken;
 
   GraphQLRequest({
     required this.path,
@@ -24,6 +26,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
     this.variables = const {},
     this.timeOutDuration,
     this.errorPolicy,
+    this.cancelToken,
     List<Failure> failures = const <Failure>[],
     super.skipRequest,
   });
@@ -37,6 +40,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
     Map<String, dynamic>? variables,
     Duration? timeOutDuration,
     ErrorPolicy? errorPolicy,
+    GraphQLCancelToken? cancelToken,
     List<Failure>? failures,
   }) {
     return GraphQLRequest(
@@ -48,6 +52,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
       variables: variables ?? this.variables,
       timeOutDuration: timeOutDuration ?? this.timeOutDuration,
       errorPolicy: errorPolicy ?? this.errorPolicy,
+      cancelToken: cancelToken ?? this.cancelToken,
       failures: failures ?? super.failures,
       returnRequest: returnRequest,
       skipRequest: skipRequest,
@@ -68,6 +73,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
         timeOutDuration: json['timeOutDuration'] != null
             ? Duration(seconds: json['timeOutDuration'])
             : null,
+        cancelToken: json['cancelToken'],
       );
 
   @override
@@ -80,6 +86,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
         "variables": variables,
         "timeOutDuration": timeOutDuration?.inSeconds,
         "errorPolicy": errorPolicy,
+        "cancelToken": cancelToken,
         "failures": failures,
         "returnRequest": returnRequest,
         "skipRequest": skipRequest,

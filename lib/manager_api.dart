@@ -13,8 +13,10 @@ import 'package:manager_api/models/failure/failure.dart';
 import 'package:manager_api/models/resultlr/resultlr.dart';
 import 'package:manager_api/requests/graphql_request.dart';
 import 'package:manager_api/requests/rest_request.dart';
+import 'package:manager_api/utils/graphql_cancel_token.dart';
 
 export 'package:manager_api/utils/validate_fragments.dart';
+export 'package:manager_api/utils/graphql_cancel_token.dart';
 
 DefaultFailures managerDefaultAPIFailures = DefaultFailures();
 
@@ -64,11 +66,10 @@ class ManagerAPI with ManagerToken {
     OperationException? exception,
     List<Failure> failures,
   ) {
-    generateLog("GraphQL Error: ${exception.toString()}", isError: true);
-    
     final allFailures = [..._failures, ...failures];
 
     if (exception?.linkException != null) {
+      generateLog("GraphQL Error: ${exception.toString()}", isError: true);
       return DefaultAPIFailures.getFailureByCode(
           DefaultAPIFailures.noConnectionCode)!;
     }
@@ -76,9 +77,18 @@ class ManagerAPI with ManagerToken {
     String? exceptionCode = getException(exception?.graphqlErrors);
 
     if (exceptionCode == DefaultAPIFailures.timeoutCode) {
+      generateLog("GraphQL Error: ${exception.toString()}", isError: true);
       return DefaultAPIFailures.getFailureByCode(
           DefaultAPIFailures.timeoutCode)!;
     }
+
+    if (exceptionCode == "cancelled") {
+      return DefaultAPIFailures.getFailureByCode(
+          DefaultAPIFailures.cancelErrorCode)!;
+    }
+
+    generateLog("GraphQL Error: ${exception.toString()}", isError: true);
+
     Failure? failure =
         allFailures.firstWhereOrNull((failure) => failure.code == exceptionCode);
 
@@ -105,6 +115,7 @@ class ManagerAPI with ManagerToken {
         variables: request.variables,
         durationTimeOut: request.timeOutDuration ?? timeOutDuration,
         errorPolicy: request.errorPolicy,
+        cancelToken: request.cancelToken,
       );
     }
 
@@ -115,6 +126,7 @@ class ManagerAPI with ManagerToken {
       variables: request.variables,
       durationTimeOut: request.timeOutDuration ?? timeOutDuration,
       errorPolicy: request.errorPolicy,
+      cancelToken: request.cancelToken,
     );
   }
 
@@ -140,6 +152,7 @@ class ManagerAPI with ManagerToken {
     required String named,
     Map<String, dynamic>? request,
     int? ignoreCode,
+    GraphQLCancelToken? cancelToken,
   }) async {
     if (request?['typeAPI'] == 'rest') {
       Stopwatch stopwatch = Stopwatch()..start();
@@ -163,6 +176,9 @@ class ManagerAPI with ManagerToken {
     }
 
     GraphQLRequest requestResult = convertGraphQLRequest(request);
+    if (cancelToken != null) {
+      requestResult = requestResult.copyWith(cancelToken: cancelToken);
+    }
     if (requestResult.skipRequest != null) {
       generateLog("REQUEST SKIPPED: ${requestResult.name}", isAlert: true);
       return requestResult.skipRequest!.result;
@@ -187,6 +203,16 @@ class ManagerAPI with ManagerToken {
     QueryResult<Object?> result = await getCorrectGraphQLRequest(requestResult);
     stopwatch.stop();
 
+    String? exceptionCode = getException(result.exception?.graphqlErrors);
+    if (exceptionCode == "cancelled") {
+      generateLog(
+        "${generateMsg(requestResult: requestResult, stopwatch: stopwatch)} - [CANCELLED]",
+        isAlert: true,
+      );
+      return Left(DefaultAPIFailures.getFailureByCode(
+          DefaultAPIFailures.cancelErrorCode)!);
+    }
+
     generateLog(generateMsg(
       requestResult: requestResult,
       stopwatch: stopwatch,
@@ -201,8 +227,6 @@ class ManagerAPI with ManagerToken {
     }
 
     if (result.hasException && ignoreCode != null && result.data != null) {
-      String? exceptionCode = getException(result.exception?.graphqlErrors);
-
       if (exceptionCode == ignoreCode.toString()) {
         dynamic returned = await requestResult.returnRequest(result.data!);
         return Right(returned);
@@ -295,15 +319,26 @@ class ManagerAPI with ManagerToken {
     GraphQLRequest<dynamic>? requestResult,
     Stopwatch? stopwatch,
   }) {
-    String type = requestResult?.type.toString().split(".").last ??
+    final type = requestResult?.type.toString().split(".").last ??
         restRequest?.type.toString().split(".").last ??
         "".toUpperCase();
 
-    String name = requestResult?.name ?? restRequest?.name ?? "";
-    Map<String, dynamic> variables =
-        requestResult?.variables ?? restRequest?.body ?? {};
+    final name = requestResult?.name ?? restRequest?.name ?? "";
+    final variables =
+        requestResult?.variables ?? restRequest?.body ?? <String, dynamic>{};
+    final path = requestResult?.path.toUpperCase() ?? "";
+    final elapsedMs = stopwatch?.elapsedMilliseconds ?? 0;
 
-    return """[${requestResult?.path.toUpperCase()}] [$type $name] - $variables - ${stopwatch?.elapsedMilliseconds}ms""";
+    return "[$path] [$type $name] - $variables - ${elapsedMs}ms";
+  }
+
+  Color _getLogTitleColor({
+    required bool isError,
+    required bool isAlert,
+  }) {
+    if (isAlert) return Colors.yellowAccent;
+    if (isError) return Colors.redAccent;
+    return Colors.amberAccent;
   }
 
   void generateLog(
@@ -317,11 +352,10 @@ class ManagerAPI with ManagerToken {
       body,
       type: LogPrintType.custom,
       title: "Graphql",
-      titleBackgroundColor: isAlert
-          ? Colors.yellowAccent
-          : isError
-              ? Colors.redAccent
-              : Colors.amberAccent,
+      titleBackgroundColor: _getLogTitleColor(
+        isError: isError,
+        isAlert: isAlert,
+      ),
       messageColor: Colors.amberAccent,
     );
   }

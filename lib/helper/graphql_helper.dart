@@ -1,10 +1,9 @@
 import 'dart:async';
 
 import 'package:graphql/client.dart';
-
 import 'package:gql/ast.dart';
-
 import 'package:gql/language.dart';
+import 'package:manager_api/utils/graphql_cancel_token.dart';
 
 class GraphQLHelper implements IGraphQLHelper {
   Duration? timeOutDuration;
@@ -53,7 +52,12 @@ class GraphQLHelper implements IGraphQLHelper {
     Map<String, dynamic> variables = const {},
     Duration? durationTimeOut,
     ErrorPolicy? errorPolicy,
+    GraphQLCancelToken? cancelToken,
   }) async {
+    if (cancelToken != null && cancelToken.isCancelled) {
+      return _cancelledAPI();
+    }
+
     final GraphQLClient client = getGraphQLClient(
       token: token,
       headers: headers,
@@ -67,23 +71,56 @@ class GraphQLHelper implements IGraphQLHelper {
     );
 
     try {
-      final QueryResult result = await client.mutate(options).timeout(
+      final Future<QueryResult<Object?>> queryFuture = client.mutate(options);
+      
+      if (cancelToken != null) {
+        final QueryResult result = await Future.any<QueryResult>([
+          queryFuture.timeout(
             durationTimeOut ?? timeOutDuration ?? _durationTimeOut,
             onTimeout: () async => _timeOutAPI(),
-          );
+          ),
+          cancelToken.whenCancelled.then<QueryResult>((_) => _cancelledAPI()),
+        ]);
 
-      if (result.exception == null || result.exception!.linkException == null) {
-        return result;
+        if (cancelToken.isCancelled) {
+          return _cancelledAPI();
+        }
+
+        final QueryResult queryResult = result;
+
+        if (queryResult.exception == null || queryResult.exception!.linkException == null) {
+          return queryResult;
+        }
+
+        if (!queryResult.exception!.linkException!.originalException
+            .toString()
+            .contains("SocketException: Failed host lookup")) {
+          return _noConnectionAPI();
+        }
+
+        return _timeOutAPI();
+      } else {
+        final QueryResult result = await queryFuture.timeout(
+          durationTimeOut ?? timeOutDuration ?? _durationTimeOut,
+          onTimeout: () async => _timeOutAPI(),
+        );
+
+        if (result.exception == null || result.exception!.linkException == null) {
+          return result;
+        }
+
+        if (!result.exception!.linkException!.originalException
+            .toString()
+            .contains("SocketException: Failed host lookup")) {
+          return _noConnectionAPI();
+        }
+
+        return _timeOutAPI();
       }
-
-      if (!result.exception!.linkException!.originalException
-          .toString()
-          .contains("SocketException: Failed host lookup")) {
-        return _noConnectionAPI();
-      }
-
-      return _timeOutAPI();
     } catch (e) {
+      if (cancelToken != null && cancelToken.isCancelled) {
+        return _cancelledAPI();
+      }
       return _noConnectionAPI();
     }
   }
@@ -96,7 +133,12 @@ class GraphQLHelper implements IGraphQLHelper {
     Map<String, dynamic> variables = const {},
     Duration? durationTimeOut,
     ErrorPolicy? errorPolicy,
+    GraphQLCancelToken? cancelToken,
   }) async {
+    if (cancelToken != null && cancelToken.isCancelled) {
+      return _cancelledAPI();
+    }
+
     try {
       final GraphQLClient client = getGraphQLClient(
         token: token,
@@ -111,23 +153,56 @@ class GraphQLHelper implements IGraphQLHelper {
         errorPolicy: errorPolicy,
       );
 
-      final QueryResult result = await client.query(options).timeout(
+      final Future<QueryResult<Object?>> queryFuture = client.query(options);
+      
+      if (cancelToken != null) {
+        final QueryResult result = await Future.any<QueryResult>([
+          queryFuture.timeout(
             durationTimeOut ?? timeOutDuration ?? _durationTimeOut,
             onTimeout: () async => _timeOutAPI(),
-          );
+          ),
+          cancelToken.whenCancelled.then<QueryResult>((_) => _cancelledAPI()),
+        ]);
 
-      if (result.exception == null || result.exception!.linkException == null) {
+        if (cancelToken.isCancelled) {
+          return _cancelledAPI();
+        }
+
+        final QueryResult queryResult = result;
+
+        if (queryResult.exception == null || queryResult.exception!.linkException == null) {
+          return queryResult;
+        }
+
+        if (!queryResult.exception!.linkException!.originalException
+            .toString()
+            .contains("SocketException: Failed host lookup")) {
+          return _noConnectionAPI();
+        }
+
+        return queryResult;
+      } else {
+        final QueryResult result = await queryFuture.timeout(
+          durationTimeOut ?? timeOutDuration ?? _durationTimeOut,
+          onTimeout: () async => _timeOutAPI(),
+        );
+
+        if (result.exception == null || result.exception!.linkException == null) {
+          return result;
+        }
+
+        if (!result.exception!.linkException!.originalException
+            .toString()
+            .contains("SocketException: Failed host lookup")) {
+          return _noConnectionAPI();
+        }
+
         return result;
       }
-
-      if (!result.exception!.linkException!.originalException
-          .toString()
-          .contains("SocketException: Failed host lookup")) {
-        return _noConnectionAPI();
-      }
-
-      return result;
     } catch (e) {
+      if (cancelToken != null && cancelToken.isCancelled) {
+        return _cancelledAPI();
+      }
       return _noConnectionAPI();
     }
   }
@@ -153,16 +228,37 @@ class GraphQLHelper implements IGraphQLHelper {
           operationName: '',
         ),
       );
+
+  QueryResult _cancelledAPI() => QueryResult(
+        source: QueryResultSource.network,
+        exception: OperationException(
+          graphqlErrors: [const GraphQLError(message: "cancelled")],
+        ),
+        options: QueryOptions(
+          document: gql(""),
+          operationName: '',
+        ),
+      );
 }
 
 abstract class IGraphQLHelper {
   Future<QueryResult> query({
     required String data,
     String? token,
+    Map<String, String>? headers,
+    Map<String, dynamic> variables = const {},
+    Duration? durationTimeOut,
+    ErrorPolicy? errorPolicy,
+    GraphQLCancelToken? cancelToken,
   });
 
   Future<QueryResult> mutation({
     required String data,
     String? token,
+    Map<String, String>? headers,
+    Map<String, dynamic> variables = const {},
+    Duration? durationTimeOut,
+    ErrorPolicy? errorPolicy,
+    GraphQLCancelToken? cancelToken,
   });
 }
