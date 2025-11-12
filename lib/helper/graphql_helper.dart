@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:graphql/client.dart';
 import 'package:gql/ast.dart';
 import 'package:gql/language.dart';
+import 'package:http/http.dart' as http;
+import 'package:manager_api/helper/cancellable_http_client.dart';
 import 'package:manager_api/utils/graphql_cancel_token.dart';
 
 class GraphQLHelper implements IGraphQLHelper {
@@ -17,8 +19,14 @@ class GraphQLHelper implements IGraphQLHelper {
   GraphQLClient getGraphQLClient({
     String? token,
     Map<String, String>? headers,
+    GraphQLCancelToken? cancelToken,
   }) {
     late Link link;
+    http.Client? httpClient;
+
+    if (cancelToken != null) {
+      httpClient = _createCancellableClient(cancelToken);
+    }
 
     if (headers == null) {
       link = HttpLink(
@@ -29,11 +37,13 @@ class GraphQLHelper implements IGraphQLHelper {
                     "${const String.fromEnvironment("BASETOKENPROJECT")}$token",
               }
             : {},
+        httpClient: httpClient,
       );
     } else {
       link = HttpLink(
         headers['apiUrl']!,
         defaultHeaders: headers,
+        httpClient: httpClient,
       );
     }
 
@@ -42,6 +52,10 @@ class GraphQLHelper implements IGraphQLHelper {
       link: link,
       queryRequestTimeout: timeOutDuration ?? _durationTimeOut,
     );
+  }
+
+  http.Client _createCancellableClient(GraphQLCancelToken cancelToken) {
+    return CancellableHttpClient(cancelToken);
   }
 
   @override
@@ -61,6 +75,7 @@ class GraphQLHelper implements IGraphQLHelper {
     final GraphQLClient client = getGraphQLClient(
       token: token,
       headers: headers,
+      cancelToken: cancelToken,
     );
 
     final MutationOptions options = MutationOptions(
@@ -72,7 +87,7 @@ class GraphQLHelper implements IGraphQLHelper {
 
     try {
       final Future<QueryResult<Object?>> queryFuture = client.mutate(options);
-      
+
       if (cancelToken != null) {
         final QueryResult result = await Future.any<QueryResult>([
           queryFuture.timeout(
@@ -88,7 +103,8 @@ class GraphQLHelper implements IGraphQLHelper {
 
         final QueryResult queryResult = result;
 
-        if (queryResult.exception == null || queryResult.exception!.linkException == null) {
+        if (queryResult.exception == null ||
+            queryResult.exception!.linkException == null) {
           return queryResult;
         }
 
@@ -105,7 +121,8 @@ class GraphQLHelper implements IGraphQLHelper {
           onTimeout: () async => _timeOutAPI(),
         );
 
-        if (result.exception == null || result.exception!.linkException == null) {
+        if (result.exception == null ||
+            result.exception!.linkException == null) {
           return result;
         }
 
@@ -143,6 +160,7 @@ class GraphQLHelper implements IGraphQLHelper {
       final GraphQLClient client = getGraphQLClient(
         token: token,
         headers: headers,
+        cancelToken: cancelToken,
       );
 
       final QueryOptions options = QueryOptions(
@@ -154,7 +172,7 @@ class GraphQLHelper implements IGraphQLHelper {
       );
 
       final Future<QueryResult<Object?>> queryFuture = client.query(options);
-      
+
       if (cancelToken != null) {
         final QueryResult result = await Future.any<QueryResult>([
           queryFuture.timeout(
@@ -170,7 +188,8 @@ class GraphQLHelper implements IGraphQLHelper {
 
         final QueryResult queryResult = result;
 
-        if (queryResult.exception == null || queryResult.exception!.linkException == null) {
+        if (queryResult.exception == null ||
+            queryResult.exception!.linkException == null) {
           return queryResult;
         }
 
@@ -187,7 +206,8 @@ class GraphQLHelper implements IGraphQLHelper {
           onTimeout: () async => _timeOutAPI(),
         );
 
-        if (result.exception == null || result.exception!.linkException == null) {
+        if (result.exception == null ||
+            result.exception!.linkException == null) {
           return result;
         }
 
