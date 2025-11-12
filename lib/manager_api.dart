@@ -69,7 +69,6 @@ class ManagerAPI with ManagerToken {
     final allFailures = [..._failures, ...failures];
 
     if (exception?.linkException != null) {
-      generateLog("GraphQL Error: ${exception.toString()}", isError: true);
       return DefaultAPIFailures.getFailureByCode(
           DefaultAPIFailures.noConnectionCode)!;
     }
@@ -77,7 +76,6 @@ class ManagerAPI with ManagerToken {
     String? exceptionCode = getException(exception?.graphqlErrors);
 
     if (exceptionCode == DefaultAPIFailures.timeoutCode) {
-      generateLog("GraphQL Error: ${exception.toString()}", isError: true);
       return DefaultAPIFailures.getFailureByCode(
           DefaultAPIFailures.timeoutCode)!;
     }
@@ -87,10 +85,8 @@ class ManagerAPI with ManagerToken {
           DefaultAPIFailures.cancelErrorCode)!;
     }
 
-    generateLog("GraphQL Error: ${exception.toString()}", isError: true);
-
-    Failure? failure =
-        allFailures.firstWhereOrNull((failure) => failure.code == exceptionCode);
+    Failure? failure = allFailures
+        .firstWhereOrNull((failure) => failure.code == exceptionCode);
 
     return (failure ?? getDefaultFailure(exceptionCode)).copyWith(
         error: exception?.graphqlErrors
@@ -246,7 +242,7 @@ class ManagerAPI with ManagerToken {
     List<Failure> failures,
   ) {
     generateLog("Rest Request Error: ${exception.toString()}", isError: true);
-    
+
     final allFailures = [..._failures, ...failures];
 
     if (exception['type'] == 'noConnection') {
