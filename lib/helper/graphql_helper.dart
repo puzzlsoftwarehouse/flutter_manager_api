@@ -68,6 +68,8 @@ class GraphQLHelper implements IGraphQLHelper {
     Duration? durationTimeOut,
     ErrorPolicy? errorPolicy,
     GraphQLCancelToken? cancelToken,
+    CacheRereadPolicy cacheRereadPolicy = CacheRereadPolicy.ignoreAll,
+    FetchPolicy fetchPolicy = FetchPolicy.networkOnly,
   }) async {
     if (cancelToken != null && cancelToken.isCancelled) {
       return _cancelledAPI();
@@ -82,7 +84,8 @@ class GraphQLHelper implements IGraphQLHelper {
     final MutationOptions options = MutationOptions(
       document: _parseDocument(data),
       variables: variables,
-      fetchPolicy: FetchPolicy.networkOnly,
+      fetchPolicy: fetchPolicy,
+      cacheRereadPolicy: cacheRereadPolicy,
       errorPolicy: errorPolicy,
     );
 
@@ -103,6 +106,8 @@ class GraphQLHelper implements IGraphQLHelper {
     Duration? durationTimeOut,
     ErrorPolicy? errorPolicy,
     GraphQLCancelToken? cancelToken,
+    CacheRereadPolicy cacheRereadPolicy = CacheRereadPolicy.ignoreAll,
+    FetchPolicy fetchPolicy = FetchPolicy.networkOnly,
   }) async {
     if (cancelToken != null && cancelToken.isCancelled) {
       return _cancelledAPI();
@@ -117,8 +122,8 @@ class GraphQLHelper implements IGraphQLHelper {
     final QueryOptions options = QueryOptions(
       document: _parseDocument(data),
       variables: variables,
-      fetchPolicy: FetchPolicy.networkOnly,
-      cacheRereadPolicy: CacheRereadPolicy.ignoreAll,
+      fetchPolicy: fetchPolicy,
+      cacheRereadPolicy: cacheRereadPolicy,
       errorPolicy: errorPolicy,
     );
 

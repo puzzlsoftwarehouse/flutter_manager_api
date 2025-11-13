@@ -17,6 +17,8 @@ import 'package:manager_api/utils/graphql_cancel_token.dart';
 
 export 'package:manager_api/utils/validate_fragments.dart';
 export 'package:manager_api/utils/graphql_cancel_token.dart';
+export 'package:graphql/client.dart'
+    show FetchPolicy, ErrorPolicy, CacheRereadPolicy;
 
 DefaultFailures managerDefaultAPIFailures = DefaultFailures();
 
@@ -111,6 +113,9 @@ class ManagerAPI with ManagerToken {
         durationTimeOut: request.timeOutDuration ?? timeOutDuration,
         errorPolicy: request.errorPolicy,
         cancelToken: request.cancelToken,
+        cacheRereadPolicy:
+            request.cacheRereadPolicy ?? CacheRereadPolicy.ignoreAll,
+        fetchPolicy: request.fetchPolicy ?? FetchPolicy.networkOnly,
       );
     }
 
@@ -122,6 +127,9 @@ class ManagerAPI with ManagerToken {
       durationTimeOut: request.timeOutDuration ?? timeOutDuration,
       errorPolicy: request.errorPolicy,
       cancelToken: request.cancelToken,
+      cacheRereadPolicy:
+          request.cacheRereadPolicy ?? CacheRereadPolicy.ignoreAll,
+      fetchPolicy: request.fetchPolicy ?? FetchPolicy.networkOnly,
     );
   }
 

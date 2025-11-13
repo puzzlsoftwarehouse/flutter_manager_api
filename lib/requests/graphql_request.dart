@@ -14,6 +14,8 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
   final Map<String, dynamic> variables;
   final Duration? timeOutDuration;
   final ErrorPolicy? errorPolicy;
+  final CacheRereadPolicy? cacheRereadPolicy;
+  final FetchPolicy? fetchPolicy;
   final GraphQLCancelToken? cancelToken;
 
   GraphQLRequest({
@@ -26,6 +28,8 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
     this.variables = const {},
     this.timeOutDuration,
     this.errorPolicy,
+    this.cacheRereadPolicy,
+    this.fetchPolicy,
     this.cancelToken,
     List<Failure> failures = const <Failure>[],
     super.skipRequest,
@@ -40,6 +44,8 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
     Map<String, dynamic>? variables,
     Duration? timeOutDuration,
     ErrorPolicy? errorPolicy,
+    FetchPolicy? fetchPolicy,
+    CacheRereadPolicy? cacheRereadPolicy,
     GraphQLCancelToken? cancelToken,
     List<Failure>? failures,
   }) {
@@ -54,6 +60,8 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
       errorPolicy: errorPolicy ?? this.errorPolicy,
       cancelToken: cancelToken ?? this.cancelToken,
       failures: failures ?? super.failures,
+      cacheRereadPolicy: cacheRereadPolicy ?? this.cacheRereadPolicy,
+      fetchPolicy: fetchPolicy ?? this.fetchPolicy,
       returnRequest: returnRequest,
       skipRequest: skipRequest,
     );
@@ -70,6 +78,8 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
         failures: json['failures'],
         returnRequest: json['returnRequest'],
         skipRequest: json['skipRequest'],
+        cacheRereadPolicy: json['cacheRereadPolicy'],
+        fetchPolicy: json['fetchPolicy'],
         timeOutDuration: json['timeOutDuration'] != null
             ? Duration(seconds: json['timeOutDuration'])
             : null,
@@ -90,5 +100,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
         "failures": failures,
         "returnRequest": returnRequest,
         "skipRequest": skipRequest,
+        "cacheRereadPolicy": cacheRereadPolicy,
+        "fetchPolicy": fetchPolicy,
       };
 }
