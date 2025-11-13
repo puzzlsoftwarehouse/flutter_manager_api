@@ -70,6 +70,8 @@ class ManagerAPI with ManagerToken {
     final List<Failure> allFailures = [..._failures, ...failures];
 
     if (exception?.linkException != null) {
+      generateLog("${exception?.linkException.toString()}", isError: true);
+
       return DefaultAPIFailures.getFailureByCode(
           DefaultAPIFailures.noConnectionCode)!;
     }
@@ -77,6 +79,8 @@ class ManagerAPI with ManagerToken {
     String? exceptionCode = getException(exception?.graphqlErrors);
 
     if (exceptionCode == DefaultAPIFailures.timeoutCode) {
+      generateLog("GraphQL Request Timeout", isError: true);
+
       return DefaultAPIFailures.getFailureByCode(
           DefaultAPIFailures.timeoutCode)!;
     }
@@ -89,11 +93,15 @@ class ManagerAPI with ManagerToken {
     final Failure? failure = allFailures
         .firstWhereOrNull((failure) => failure.code == exceptionCode);
 
-    return (failure ?? getDefaultFailure(exceptionCode)).copyWith(
-        error: exception?.graphqlErrors
-            .map((item) => item.toString())
-            .toList()
-            .join('\n'));
+    final Failure resultFailure = (failure ?? getDefaultFailure(exceptionCode))
+        .copyWith(
+            error: exception?.graphqlErrors
+                .map((item) => item.toString())
+                .toList()
+                .join('\n'));
+
+    generateLog(resultFailure.log, isError: true);
+    return resultFailure;
   }
 
   Future<QueryResult<Object?>> getCorrectGraphQLRequest(
