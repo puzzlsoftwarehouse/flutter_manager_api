@@ -100,7 +100,7 @@ class ManagerAPI with ManagerToken {
                 .toList()
                 .join('\n'));
 
-    generateLog(resultFailure.log, isError: true);
+    generateLog(resultFailure.error ?? resultFailure.message, isError: true);
     return resultFailure;
   }
 
@@ -220,7 +220,7 @@ class ManagerAPI with ManagerToken {
     if (exceptionCode == "cancelled") {
       generateLog(
         "${generateMsg(requestResult: requestResult, stopwatch: stopwatch)} - [CANCELLED]",
-        isAlert: true,
+        isCanceled: true,
       );
       return Left(DefaultAPIFailures.getFailureByCode(
           DefaultAPIFailures.cancelErrorCode)!);
@@ -349,16 +349,19 @@ class ManagerAPI with ManagerToken {
   Color _getLogTitleColor({
     required bool isError,
     required bool isAlert,
+    required bool isCanceled,
   }) {
     if (isAlert) return Colors.yellowAccent;
     if (isError) return Colors.redAccent;
-    return Colors.amberAccent;
+    if (isCanceled) return Colors.white70;
+    return Colors.amber;
   }
 
   void generateLog(
     String body, {
     bool isError = false,
     bool isAlert = false,
+    bool isCanceled = false,
   }) {
     if (!kDebugMode) return;
 
@@ -369,8 +372,13 @@ class ManagerAPI with ManagerToken {
       titleBackgroundColor: _getLogTitleColor(
         isError: isError,
         isAlert: isAlert,
+        isCanceled: isCanceled,
       ),
-      messageColor: Colors.amberAccent,
+      messageColor: _getLogTitleColor(
+        isError: isError,
+        isAlert: isAlert,
+        isCanceled: isCanceled,
+      ),
     );
   }
 
