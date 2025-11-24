@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:web/web.dart' as web;
 
 typedef UploadProgressListener = Function(int progress);
-typedef UploadFailureListener = Function();
+typedef UploadFailureListener = Function(String? error);
 typedef UploadCompleteListener = Function(String response);
 typedef OnFileSelectedListener = Function(web.File file);
 
@@ -38,7 +38,7 @@ class LargeFileUploader {
     Function(Function() onCancel)? cancelFunction,
   }) {
     if (_worker == null) {
-      onFailure?.call();
+      onFailure?.call("Web Worker is not supported in this environment.");
       return;
     }
 
@@ -56,26 +56,31 @@ class LargeFileUploader {
 
     _worker?.postMessage(message);
 
-    _worker?.addEventListener('error', (web.Event event) {
-      onFailure?.call();
-    }.toJS);
+    _worker?.addEventListener(
+        'error',
+        (web.Event event) {
+          onFailure?.call("");
+        }.toJS);
 
-    _worker?.addEventListener('message', (web.MessageEvent event) {
-      final messageData = event.data;
-      if (messageData != null) {
-        try {
-          final dartData = messageData.dartify();
-          _handleCallbacks(
-            dartData,
-            onSendProgress: onSendProgress,
-            onFailure: onFailure,
-            onComplete: onComplete,
-          );
-        } catch (e) {
-          // Ignore conversion errors
-        }
-      }
-    }.toJS);
+    _worker?.addEventListener(
+        'message',
+        (web.MessageEvent event) {
+          final messageData = event.data;
+
+          if (messageData != null) {
+            try {
+              final dartData = messageData.dartify();
+              _handleCallbacks(
+                dartData,
+                onSendProgress: onSendProgress,
+                onFailure: onFailure,
+                onComplete: onComplete,
+              );
+            } catch (e) {
+              onFailure?.call(e.toString());
+            }
+          }
+        }.toJS);
   }
 
   void onCancel() {
@@ -100,14 +105,23 @@ class LargeFileUploader {
     }
 
     final dataString = data.toString();
+
     if (dataString == 'request failed') {
-      onFailure?.call();
+      onFailure?.call("Request failed");
       return;
     }
 
     if (data is String) {
       onComplete?.call(data);
       return;
+    }
+
+    if (data is Map) {
+      final errorValue = data['error'];
+      if (errorValue != null && errorValue is String) {
+        onFailure?.call(errorValue);
+        return;
+      }
     }
 
     try {
@@ -218,36 +232,5 @@ function setHeaders(xhr, headers) {
   }
 }
 ''';
-  }
-}
-
-enum FileTypes {
-  file,
-  image,
-  imagePng,
-  imageGif,
-  imageJpeg,
-  audio,
-  video,
-}
-
-extension FileTypesExtention on FileTypes {
-  String get value {
-    switch (this) {
-      case FileTypes.file:
-        return '';
-      case FileTypes.imagePng:
-        return 'image/png';
-      case FileTypes.imageGif:
-        return 'image/gif';
-      case FileTypes.imageJpeg:
-        return 'image/jpeg';
-      case FileTypes.image:
-        return 'image/*';
-      case FileTypes.audio:
-        return 'audio/*';
-      case FileTypes.video:
-        return 'video/*';
-    }
   }
 }
