@@ -3,10 +3,11 @@ import 'dart:js_interop';
 import 'package:flutter/foundation.dart';
 import 'package:web/web.dart' as web;
 
-typedef UploadProgressListener = Function(int progress);
-typedef UploadFailureListener = Function(String? error);
-typedef UploadCompleteListener = Function(String response);
-typedef OnFileSelectedListener = Function(web.File file);
+typedef UploadProgressListener = void Function(int progress);
+typedef UploadFailureListener = void Function(String? error);
+typedef UploadCompleteListener = void Function(String response);
+typedef OnFileSelectedListener = void Function(web.File file);
+typedef CancelCallback = void Function(void Function() onCancel);
 
 class LargeFileUploader {
   String requestId = UniqueKey().toString();
@@ -19,11 +20,12 @@ class LargeFileUploader {
       requestId = DateTime.now().millisecondsSinceEpoch.toString();
     }
 
-    final workerCode = _getWorkerCode();
-    final blobParts = [workerCode.toJS].toJS;
-    final blobOptions = web.BlobPropertyBag(type: 'application/javascript');
-    final blob = web.Blob(blobParts, blobOptions);
-    final blobUrl = web.URL.createObjectURL(blob);
+    final String workerCode = _getWorkerCode();
+    final JSArray<JSAny> blobParts = [workerCode.toJS].toJS;
+    final web.BlobPropertyBag blobOptions =
+        web.BlobPropertyBag(type: 'application/javascript');
+    final web.Blob blob = web.Blob(blobParts, blobOptions);
+    final String blobUrl = web.URL.createObjectURL(blob);
     _worker = web.Worker(blobUrl.toJS);
   }
 
@@ -32,10 +34,10 @@ class LargeFileUploader {
     required UploadProgressListener onSendProgress,
     required Map<String, dynamic> data,
     String method = 'POST',
-    Map<String, dynamic>? headers,
+    Map<String, String>? headers,
     UploadFailureListener? onFailure,
     UploadCompleteListener? onComplete,
-    Function(Function() onCancel)? cancelFunction,
+    CancelCallback? cancelFunction,
   }) {
     if (_worker == null) {
       onFailure?.call("Web Worker is not supported in this environment.");
@@ -46,15 +48,15 @@ class LargeFileUploader {
       cancelFunction(onCancel);
     }
 
-    final message = <String, Object?>{
+    final Map<String, Object?> message = <String, Object?>{
       'method': method,
       'uploadUrl': uploadUrl,
       'data': data,
       'headers': headers,
       'requestId': requestId,
-    }.jsify();
+    };
 
-    _worker?.postMessage(message);
+    _worker?.postMessage(message.jsify());
 
     _worker?.addEventListener(
         'error',
@@ -84,11 +86,11 @@ class LargeFileUploader {
   }
 
   void onCancel() {
-    final message = <String, Object?>{
+    final Map<String, Object?> message = <String, Object?>{
       'method': 'abort',
       'requestId': requestId,
-    }.jsify();
-    _worker?.postMessage(message);
+    };
+    _worker?.postMessage(message.jsify());
   }
 
   void _handleCallbacks(
@@ -100,11 +102,11 @@ class LargeFileUploader {
     if (data == null) return;
 
     if (data is num) {
-      onSendProgress.call(data.toInt());
+      onSendProgress(data.toInt());
       return;
     }
 
-    final dataString = data.toString();
+    final String dataString = data.toString();
 
     if (dataString == 'request failed') {
       onFailure?.call("Request failed");
@@ -116,8 +118,8 @@ class LargeFileUploader {
       return;
     }
 
-    if (data is Map) {
-      final errorValue = data['error'];
+    if (data is Map<dynamic, dynamic>) {
+      final Object? errorValue = data['error'];
       if (errorValue != null && errorValue is String) {
         onFailure?.call(errorValue);
         return;
@@ -125,7 +127,7 @@ class LargeFileUploader {
     }
 
     try {
-      final jsonString = data.toString();
+      final String jsonString = data.toString();
       onComplete?.call(jsonString);
     } catch (e) {
       onComplete?.call(dataString);

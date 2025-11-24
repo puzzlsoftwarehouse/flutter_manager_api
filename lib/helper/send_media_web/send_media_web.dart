@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:js_interop';
+import 'dart:typed_data';
 import 'package:cross_file/cross_file.dart';
 import 'package:dio/dio.dart';
 import 'package:manager_api/extension.dart';
@@ -14,22 +15,23 @@ class SendMediaWeb {
   static Future<Map<String, dynamic>> sendMedia({
     required XFile file,
     required String url,
-    Map<String, dynamic> parameters = const {},
+    Map<String, dynamic> parameters = const <String, dynamic>{},
     Map<String, String>? headers,
     BehaviorSubject<int>? streamProgress,
     CancelToken? cancelToken,
   }) async {
-    final completer = Completer<Map<String, dynamic>>();
+    final Completer<Map<String, dynamic>> completer =
+        Completer<Map<String, dynamic>>();
 
     try {
-      final bytes = await file.readAsBytes();
-      final blobParts = [bytes.toJS].toJS;
-      final filePropertyBag = web.FilePropertyBag(
+      final Uint8List bytes = await file.readAsBytes();
+      final JSArray<JSAny> blobParts = [bytes.toJS].toJS;
+      final web.FilePropertyBag filePropertyBag = web.FilePropertyBag(
           type: file.mimeType ?? 'application/octet-stream');
-      final htmlFile = web.File(blobParts, file.name, filePropertyBag);
+      final web.File htmlFile = web.File(blobParts, file.name, filePropertyBag);
 
-      final uri = Uri.parse(url).replace(queryParameters: parameters);
-      final uploader = LargeFileUploader();
+      final Uri uri = Uri.parse(url).replace(queryParameters: parameters);
+      final LargeFileUploader uploader = LargeFileUploader();
 
       uploader.upload(
         method: 'POST',
@@ -37,20 +39,23 @@ class SendMediaWeb {
         data: {"file": htmlFile},
         headers: headers,
         onSendProgress: (progress) => streamProgress?.add(progress),
-        onComplete: (response) {
+        onComplete: (String response) {
           if (completer.isCompleted) return;
 
           if (response.isValidJson()) {
-            final data = jsonDecode(response);
+            final Map<String, dynamic> data =
+                jsonDecode(response) as Map<String, dynamic>;
             completer.complete(data);
             return;
           }
 
-          completer.complete({'error': response});
+          completer.complete(<String, dynamic>{'error': response});
         },
-        onFailure: (error) {
+        onFailure: (String? error) {
           if (!completer.isCompleted) {
-            completer.complete({'error': error ?? 'Upload failed'});
+            completer.complete(<String, dynamic>{
+              'error': error ?? 'Upload failed'
+            });
           }
         },
         cancelFunction: (onCancel) {
