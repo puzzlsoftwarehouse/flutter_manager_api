@@ -9,8 +9,8 @@ import 'package:manager_api/helper/send_media_web/large_file_uploader.dart';
 import 'package:rxdart/subjects.dart';
 import 'package:web/web.dart' as web;
 
-class SendMediaWeb {
-  SendMediaWeb._();
+class SendMedia {
+  SendMedia._();
 
   static Future<Map<String, dynamic>> sendMedia({
     required XFile file,
@@ -53,9 +53,8 @@ class SendMediaWeb {
         },
         onFailure: (String? error) {
           if (!completer.isCompleted) {
-            completer.complete(<String, dynamic>{
-              'error': error ?? 'Upload failed'
-            });
+            completer
+                .complete(<String, dynamic>{'error': error ?? 'Upload failed'});
           }
         },
         cancelFunction: (onCancel) {
