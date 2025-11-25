@@ -1,18 +1,34 @@
-import 'dart:developer';
+import 'dart:js_interop';
 
 import 'package:flutter/foundation.dart';
-import 'package:universal_html/html.dart' as html;
+import 'package:web/web.dart' as web;
 
-typedef UploadProgressListener = Function(int progress);
-typedef UploadFailureListener = Function();
-typedef UploadCompleteListener = Function(String response);
-typedef OnFileSelectedListener = Function(html.File file);
+import 'upload_worker_code.dart';
+
+typedef UploadProgressListener = void Function(int progress);
+typedef UploadFailureListener = void Function(String? error);
+typedef UploadCompleteListener = void Function(String response);
+typedef OnFileSelectedListener = void Function(web.File file);
+typedef CancelCallback = void Function(void Function() onCancel);
 
 class LargeFileUploader {
   String requestId = UniqueKey().toString();
-  html.Worker? _worker;
+  web.Worker? _worker;
+
   LargeFileUploader() {
-    _worker = html.Worker('upload_worker.js');
+    try {
+      requestId = UniqueKey().toString();
+    } catch (e) {
+      requestId = DateTime.now().millisecondsSinceEpoch.toString();
+    }
+
+    final String workerCode = uploadWorkerCode;
+    final JSArray<JSAny> blobParts = [workerCode.toJS].toJS;
+    final web.BlobPropertyBag blobOptions =
+        web.BlobPropertyBag(type: 'application/javascript');
+    final web.Blob blob = web.Blob(blobParts, blobOptions);
+    final String blobUrl = web.URL.createObjectURL(blob);
+    _worker = web.Worker(blobUrl.toJS);
   }
 
   void upload({
@@ -20,40 +36,63 @@ class LargeFileUploader {
     required UploadProgressListener onSendProgress,
     required Map<String, dynamic> data,
     String method = 'POST',
-    Map<String, dynamic>? headers,
+    Map<String, String>? headers,
     UploadFailureListener? onFailure,
     UploadCompleteListener? onComplete,
-    Function(Function() onCancel)? cancelFunction,
+    CancelCallback? cancelFunction,
   }) {
+    if (_worker == null) {
+      onFailure?.call("Web Worker is not supported in this environment.");
+      return;
+    }
+
     if (cancelFunction != null) {
       cancelFunction(onCancel);
     }
-    _worker?.postMessage({
+
+    final Map<String, Object?> message = <String, Object?>{
       'method': method,
       'uploadUrl': uploadUrl,
       'data': data,
       'headers': headers,
       'requestId': requestId,
-    });
-    _worker?.onError.listen((event) {
-      log("Request abort or is necessary to add file upload_worker.js inside project on folder 'web' like 'web/upload_worker.js");
-    });
+    };
 
-    _worker?.onMessage.listen((data) {
-      _handleCallbacks(
-        data.data,
-        onSendProgress: onSendProgress,
-        onFailure: onFailure,
-        onComplete: onComplete,
-      );
-    });
+    _worker?.postMessage(message.jsify());
+
+    _worker?.addEventListener(
+        'error',
+        (web.Event event) {
+          onFailure?.call("");
+        }.toJS);
+
+    _worker?.addEventListener(
+        'message',
+        (web.MessageEvent event) {
+          final messageData = event.data;
+
+          if (messageData != null) {
+            try {
+              final dartData = messageData.dartify();
+              _handleCallbacks(
+                dartData,
+                onSendProgress: onSendProgress,
+                onFailure: onFailure,
+                onComplete: onComplete,
+              );
+            } catch (e) {
+              onFailure?.call(e.toString());
+            }
+          }
+        }.toJS);
   }
 
   void onCancel() {
-    _worker?.postMessage({
+    final Map<String, Object?> message = <String, Object?>{
       'method': 'abort',
       'requestId': requestId,
-    });
+    };
+    _worker?.postMessage(message.jsify());
   }
 
   void _handleCallbacks(
@@ -64,45 +103,36 @@ class LargeFileUploader {
   }) {
     if (data == null) return;
 
-    if (data is int) {
-      onSendProgress.call(data);
+    if (data is num) {
+      onSendProgress(data.toInt());
       return;
     }
-    if (data.toString() == 'request failed') {
-      onFailure?.call();
+
+    final String dataString = data.toString();
+
+    if (dataString == 'request failed') {
+      onFailure?.call("Request failed");
       return;
     }
-    onComplete?.call(data);
-  }
-}
 
-enum FileTypes {
-  file,
-  image,
-  imagePng,
-  imageGif,
-  imageJpeg,
-  audio,
-  video,
-}
+    if (data is String) {
+      onComplete?.call(data);
+      return;
+    }
 
-extension FileTypesExtention on FileTypes {
-  String get value {
-    switch (this) {
-      case FileTypes.file:
-        return '';
-      case FileTypes.imagePng:
-        return 'image/png';
-      case FileTypes.imageGif:
-        return 'image/gif';
-      case FileTypes.imageJpeg:
-        return 'image/jpeg';
-      case FileTypes.image:
-        return 'image/*';
-      case FileTypes.audio:
-        return 'audio/*';
-      case FileTypes.video:
-        return 'video/*';
+    if (data is Map<dynamic, dynamic>) {
+      final Object? errorValue = data['error'];
+      if (errorValue != null && errorValue is String) {
+        onFailure?.call(errorValue);
+        return;
+      }
+    }
+
+    try {
+      final String jsonString = data.toString();
+      onComplete?.call(jsonString);
+    } catch (e) {
+      onComplete?.call(dataString);
     }
   }
 }
