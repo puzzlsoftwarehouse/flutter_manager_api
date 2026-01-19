@@ -227,6 +227,12 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   void debugger(String name) {
     if (kReleaseMode) return;
 
+    bool result = const bool.fromEnvironment(
+      "WEBSOCKETLOGGER",
+      defaultValue: true,
+    );
+    if (!result) return;
+
     LogPrint(
       name,
       type: LogPrintType.custom,
