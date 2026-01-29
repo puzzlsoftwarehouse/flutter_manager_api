@@ -22,7 +22,7 @@ class ValidateFragments {
   }
 
   static Future<String?> _validateFragments(String path) async {
-    String fileResult = await rootBundle.loadString(path);
+    String fileResult = await rootBundle.loadString(path, cache: false);
     Set<String> fragments = _extractFragments(fileResult);
     for (String fragment in fragments) {
       if (!_doesFragmentExist(fragment, fileResult)) {
