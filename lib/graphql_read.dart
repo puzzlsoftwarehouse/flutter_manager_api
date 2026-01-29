@@ -72,7 +72,9 @@ class GraphQLRead {
     StringBuffer lineIncrement = StringBuffer();
     StringBuffer resultBuffer = StringBuffer();
     String fileResult = (await rootBundle.loadString(
-        'lib/src/services/graphql/${StringConverter.camelCaseToSnakeCase(path)}/${StringConverter.camelCaseToSnakeCase(path)}.graphql'));
+      'lib/src/services/graphql/${StringConverter.camelCaseToSnakeCase(path)}/${StringConverter.camelCaseToSnakeCase(path)}.graphql',
+      cache: false,
+    ));
 
     final List<String> lines = fileResult.split("\n");
 
