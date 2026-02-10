@@ -106,11 +106,12 @@ class ManagerAPI with ManagerToken {
 
   Future<QueryResult<Object?>> getCorrectGraphQLRequest(
       GraphQLRequest request) async {
-    String query = await GraphQLRead.get(
-      path: request.path,
-      type: request.type,
-      requestName: request.name,
-    );
+    String query = request.query ??
+        (await GraphQLRead.get(
+          path: request.path,
+          type: request.type,
+          requestName: request.name,
+        ));
 
     if (request.type == RequestGraphQLType.mutation) {
       return await _api.mutation(
