@@ -17,6 +17,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
   final CacheRereadPolicy? cacheRereadPolicy;
   final FetchPolicy? fetchPolicy;
   final GraphQLCancelToken? cancelToken;
+  final String? query;
 
   GraphQLRequest({
     required this.path,
@@ -31,6 +32,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
     this.cacheRereadPolicy,
     this.fetchPolicy,
     this.cancelToken,
+    this.query,
     List<Failure> failures = const <Failure>[],
     super.skipRequest,
   });
@@ -48,6 +50,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
     CacheRereadPolicy? cacheRereadPolicy,
     GraphQLCancelToken? cancelToken,
     List<Failure>? failures,
+    String? query,
   }) {
     return GraphQLRequest(
       path: path ?? this.path,
@@ -64,6 +67,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
       fetchPolicy: fetchPolicy ?? this.fetchPolicy,
       returnRequest: returnRequest,
       skipRequest: skipRequest,
+      query: query ?? this.query,
     );
   }
 
@@ -84,6 +88,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
             ? Duration(seconds: json['timeOutDuration'])
             : null,
         cancelToken: json['cancelToken'],
+        query: json['query'],
       );
 
   @override
@@ -102,5 +107,6 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
         "skipRequest": skipRequest,
         "cacheRereadPolicy": cacheRereadPolicy,
         "fetchPolicy": fetchPolicy,
+        "query": query,
       };
 }
