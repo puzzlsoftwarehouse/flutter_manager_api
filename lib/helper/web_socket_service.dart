@@ -26,6 +26,10 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   WebSocketChannel? get controller => _controller;
 
   Timer? _timerOfConfirmationHasConnected;
+  Timer? _connectionConfirmationTimeout;
+  static const Duration _connectionConfirmationDelay = Duration(seconds: 1);
+  static const Duration _connectionConfirmationTimeoutDuration =
+      Duration(seconds: 5);
 
   String? _url;
   Map<String, dynamic>? _parameters;
@@ -35,6 +39,8 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   StreamSubscription? _streamSubscription;
 
   bool _pong = false;
+  bool _awaitingConnectionConfirmation = false;
+  bool _isReconnectAttempt = false;
 
   WebSocketType _socketType = WebSocketType.connecting;
   @override
@@ -85,6 +91,9 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
       _streamSubscription = _controller!.stream.listen((event) {
         if (jsonDecode(event)['type'] == "pong") {
           _pong = true;
+          if (_awaitingConnectionConfirmation) {
+            _onConnectionConfirmedByPong();
+          }
           return;
         }
         debugger(event.toString());
@@ -111,6 +120,9 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
 
     _timerOfConfirmationHasConnected?.cancel();
     _timerOfConfirmationHasConnected = null;
+    _connectionConfirmationTimeout?.cancel();
+    _connectionConfirmationTimeout = null;
+    _awaitingConnectionConfirmation = false;
   }
 
   void connecting() {
@@ -121,17 +133,75 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
 
   void confirmationOfConnection() {
     _timerOfConfirmationHasConnected?.cancel();
-    _timerOfConfirmationHasConnected = Timer(Duration(seconds: 1), () {
-      if (_needReconnect) {
-        debugger("WebSocket Reconnected: $_url");
-        _needReconnect = false;
-        stream.add(ConnectionEvent(WebSocketType.reconnected));
-        return;
-      }
-      debugger("WebSocket Connected: $_url");
-      stream.add(ConnectionEvent(WebSocketType.connected));
-      setSocketType(WebSocketType.connected);
+    _connectionConfirmationTimeout?.cancel();
+    _awaitingConnectionConfirmation = false;
+
+    _isReconnectAttempt = _needReconnect;
+
+    if (!enablePing) {
+      _timerOfConfirmationHasConnected =
+          Timer(_connectionConfirmationDelay, () {
+        if (_controller == null || _isClosed) return;
+        if (_isReconnectAttempt) {
+          debugger("WebSocket Reconnected: $_url");
+          _needReconnect = false;
+          stream.add(ConnectionEvent(WebSocketType.reconnected));
+        } else {
+          debugger("WebSocket Connected: $_url");
+          stream.add(ConnectionEvent(WebSocketType.connected));
+        }
+        setSocketType(WebSocketType.connected);
+      });
+      return;
+    }
+
+    _timerOfConfirmationHasConnected = Timer(_connectionConfirmationDelay, () {
+      if (_controller == null || _isClosed) return;
+
+      _awaitingConnectionConfirmation = true;
+      _pong = false;
+      _controller!.sink.add(jsonEncode({"type": "ping"}));
+
+      _connectionConfirmationTimeout?.cancel();
+      _connectionConfirmationTimeout = Timer(
+        _connectionConfirmationTimeoutDuration,
+        checkPongReconnection,
+      );
     });
+  }
+
+  void checkPongReconnection() {
+    if (!_awaitingConnectionConfirmation || _isClosed) return;
+    debugger("WebSocket connection confirmation timeout (no pong): $_url");
+    _awaitingConnectionConfirmation = false;
+    _controller?.sink.close();
+    disconnect();
+    if (_url != null && _needReconnect) {
+      _cancelTimer();
+      _needReconnect = true;
+      initialize(
+        url: _url!,
+        parameters: _parameters ?? <String, dynamic>{},
+      );
+    }
+  }
+
+  void _onConnectionConfirmedByPong() {
+    if (!_awaitingConnectionConfirmation || _isClosed) return;
+
+    _connectionConfirmationTimeout?.cancel();
+    _connectionConfirmationTimeout = null;
+    _awaitingConnectionConfirmation = false;
+    _needReconnect = false;
+
+    if (_isReconnectAttempt) {
+      debugger("WebSocket Reconnected (confirmed by pong): $_url");
+      stream.add(ConnectionEvent(WebSocketType.reconnected));
+    } else {
+      debugger("WebSocket Connected (confirmed by pong): $_url");
+      stream.add(ConnectionEvent(WebSocketType.connected));
+    }
+    setSocketType(WebSocketType.connected);
   }
 
   @override
@@ -246,6 +316,7 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   void dispose() {
     _timer?.cancel();
     _timerOfConfirmationHasConnected?.cancel();
+    _connectionConfirmationTimeout?.cancel();
     closeSection();
     stream.close();
     super.dispose();
