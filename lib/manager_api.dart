@@ -165,6 +165,7 @@ class ManagerAPI with ManagerToken {
     Map<String, dynamic>? request,
     int? ignoreCode,
     GraphQLCancelToken? cancelToken,
+    void Function(Map<String, dynamic>? rawResult)? onGraphQLRawResult,
   }) async {
     if (request?['typeAPI'] == 'rest') {
       final Stopwatch stopwatch = Stopwatch()..start();
@@ -200,12 +201,14 @@ class ManagerAPI with ManagerToken {
     return await identifyPermissionForRequest(
       requestResult: requestResult,
       ignoreCode: ignoreCode,
+      onGraphQLRawResult: onGraphQLRawResult,
     );
   }
 
   Future<ResultLR<Failure, dynamic>> identifyPermissionForRequest({
     required GraphQLRequest<dynamic> requestResult,
     int? ignoreCode,
+    void Function(Map<String, dynamic>? rawResult)? onGraphQLRawResult,
   }) async {
     final Stopwatch stopwatch = Stopwatch()..start();
 
@@ -215,6 +218,7 @@ class ManagerAPI with ManagerToken {
 
     final QueryResult<Object?> result =
         await getCorrectGraphQLRequest(requestResult);
+    onGraphQLRawResult?.call(result.data);
     stopwatch.stop();
 
     final String? exceptionCode = getException(result.exception?.graphqlErrors);
