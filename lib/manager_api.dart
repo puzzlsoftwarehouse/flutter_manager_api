@@ -97,12 +97,12 @@ class ManagerAPI with ManagerToken {
     }
 
     final Failure? failure = allFailures
-        .firstWhereOrNull((failure) => failure.code == exceptionCode);
+        .firstWhereOrNull((Failure failure) => failure.code == exceptionCode);
 
     final Failure resultFailure = (failure ?? getDefaultFailure(exceptionCode))
         .copyWith(
             error: exception?.graphqlErrors
-                .map((item) => item.toString())
+                .map((GraphQLError item) => item.toString())
                 .toList()
                 .join('\n'));
 
@@ -163,7 +163,7 @@ class ManagerAPI with ManagerToken {
     return actualHeaders;
   }
 
-  GraphQLRequest convertGraphQLRequest(Map<String, dynamic>? request) =>
+  GraphQLRequest<dynamic> convertGraphQLRequest(Map<String, dynamic>? request) =>
       GraphQLRequest.fromJson(request ?? const <String, dynamic>{});
 
   Future<ResultLR<Failure, dynamic>> request({
@@ -294,7 +294,7 @@ class ManagerAPI with ManagerToken {
     }
 
     Failure? failure =
-        allFailures.firstWhereOrNull((failure) => failure.code == code);
+        allFailures.firstWhereOrNull((Failure failure) => failure.code == code);
 
     return failure ??
         getDefaultFailure("${code ?? ""}  ${exception['message']}");

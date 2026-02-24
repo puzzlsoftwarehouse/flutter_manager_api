@@ -66,7 +66,7 @@ class GraphQLHelper implements IGraphQLHelper {
 
     List<GraphQLError>? graphqlErrors;
     if (errorsList != null && errorsList.isNotEmpty) {
-      graphqlErrors = errorsList.map((e) {
+      graphqlErrors = errorsList.map((dynamic e) {
         final map =
             e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{};
         final message = map['message']?.toString() ?? 'Unknown error';

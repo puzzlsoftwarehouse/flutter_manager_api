@@ -8,9 +8,9 @@ class ValidateFragments {
     final directory = Directory('lib/src/services/graphql');
     final files = directory
         .listSync(recursive: true)
-        .where((file) => file.path.endsWith('.graphql'));
+        .where((FileSystemEntity file) => file.path.endsWith('.graphql'));
 
-    for (var file in files) {
+    for (final FileSystemEntity file in files) {
       final path = file.path.replaceAll('\\', '/');
       final String? fragmentNotFound = await _validateFragments(path);
       if (fragmentNotFound != null) {
@@ -33,10 +33,10 @@ class ValidateFragments {
   }
 
   static Set<String> _extractFragments(String fileResult) {
-    Set<String> fragments = {};
+    Set<String> fragments = <String>{};
     RegExp fragmentUsageRegex = RegExp(r'\.\.\.\s*(\w+)');
     Iterable<RegExpMatch> matches = fragmentUsageRegex.allMatches(fileResult);
-    for (var match in matches) {
+    for (final RegExpMatch match in matches) {
       if (match.group(1) != null) {
         fragments.add(match.group(1)!);
       }
