@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -302,6 +303,10 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
       defaultValue: true,
     );
     if (!result) return;
+
+    if (Platform.isIOS) {
+      return debugPrint("WebSocket $_type: $name");
+    }
 
     LogPrint(
       name,
