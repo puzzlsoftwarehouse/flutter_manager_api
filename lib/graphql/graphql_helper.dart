@@ -8,15 +8,12 @@ import 'package:manager_api/utils/graphql_cancel_token.dart';
 class GraphQLHelper implements IGraphQLHelper {
   Duration? timeOutDuration;
 
-  Dio? _dio;
+  final Dio _dio = Dio();
+  Dio get _client => _dio;
 
   GraphQLHelper({this.timeOutDuration});
 
   Duration get _defaultTimeout => const Duration(seconds: 15);
-
-  Dio get _client {
-    return _dio!;
-  }
 
   String _url(Map<String, String>? headers) {
     if (headers != null && headers['apiUrl'] != null) {
