@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:collection/collection.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -163,7 +165,8 @@ class ManagerAPI with ManagerToken {
     return actualHeaders;
   }
 
-  GraphQLRequest<dynamic> convertGraphQLRequest(Map<String, dynamic>? request) =>
+  GraphQLRequest<dynamic> convertGraphQLRequest(
+          Map<String, dynamic>? request) =>
       GraphQLRequest.fromJson(request ?? const <String, dynamic>{});
 
   Future<ResultLR<Failure, dynamic>> request({
@@ -376,6 +379,10 @@ class ManagerAPI with ManagerToken {
     bool isCanceled = false,
   }) {
     if (!kDebugMode) return;
+
+    if (Platform.isIOS) {
+      return debugPrint("GraphQL: $body");
+    }
 
     LogPrint(
       body,
