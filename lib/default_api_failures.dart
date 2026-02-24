@@ -16,7 +16,7 @@ class DefaultAPIFailures {
       );
 
   static Failure? getFailureByCode(String code) =>
-      failures.firstWhereOrNull((failure) => failure.code == code);
+      failures.firstWhereOrNull((Failure failure) => failure.code == code);
 
   static const String timeoutCode = 'timeout';
   static const String noConnectionCode = 'noConnection';

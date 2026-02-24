@@ -1,12 +1,11 @@
-import 'package:graphql/client.dart';
 import 'package:manager_api/models/failure/failure.dart';
+import 'package:manager_api/models/graphql/graphql_policies.dart';
 import 'package:manager_api/requests/request_api.dart';
 import 'package:manager_api/utils/graphql_cancel_token.dart';
 
 enum RequestGraphQLType { query, mutation, subscription }
 
 class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
-  /// directory where is the file .graphql
   final String path;
   final RequestGraphQLType type;
   final String? token;
@@ -71,13 +70,25 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
     );
   }
 
+  static RequestGraphQLType _typeFromJson(dynamic v) {
+    if (v is RequestGraphQLType) return v;
+    final s = v?.toString();
+    if (s == 'mutation') return RequestGraphQLType.mutation;
+    if (s == 'subscription') return RequestGraphQLType.subscription;
+    return RequestGraphQLType.query;
+  }
+
   factory GraphQLRequest.fromJson(Map<String, dynamic> json) => GraphQLRequest(
         path: json['path'],
         name: json['name'],
         token: json['token'],
-        type: json['type'],
-        headers: json['headers'],
-        variables: json['variables'],
+        type: _typeFromJson(json['type']),
+        headers: json['headers'] != null
+            ? Map<String, String>.from(json['headers'] as Map)
+            : null,
+        variables: json['variables'] != null
+            ? Map<String, dynamic>.from(json['variables'] as Map)
+            : const {},
         errorPolicy: json['errorPolicy'],
         failures: json['failures'],
         returnRequest: json['returnRequest'],
