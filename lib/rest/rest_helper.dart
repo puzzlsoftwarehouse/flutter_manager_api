@@ -3,10 +3,9 @@ import 'package:cross_file/cross_file.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:manager_api/default_api_failures.dart';
+import 'package:manager_api/upload/send_media_desktop.dart'
+    if (dart.library.js_interop) 'package:manager_api/upload/send_media_web.dart';
 import 'package:rxdart/rxdart.dart';
-
-import 'send_media/send_media_desktop.dart'
-    if (dart.library.js_interop) 'send_media/send_media_web.dart';
 
 class RestHelper {
   static const Duration _defaultTimeout = Duration(minutes: 1);

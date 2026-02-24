@@ -1,5 +1,5 @@
 import 'package:flutter/services.dart';
-import 'package:manager_api/requests/graphql_request.dart';
+import 'package:manager_api/graphql/graphql_request.dart';
 import 'package:manager_api/utils/string_converter.dart';
 
 class GraphQLRead {

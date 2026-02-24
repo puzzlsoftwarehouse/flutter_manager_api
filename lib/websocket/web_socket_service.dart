@@ -4,10 +4,10 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:log_print/log_print.dart';
-import 'package:manager_api/helper/web_socket_manager.dart';
 import 'package:manager_api/models/websocket/web_socket_type.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:manager_api/websocket/web_socket_manager.dart';
 import 'package:rxdart/rxdart.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 class WebSocketService extends WebSocketManager with ChangeNotifier {
   bool _isClosed = false;

@@ -2,23 +2,24 @@ import 'package:collection/collection.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:graphql/client.dart';
 import 'package:log_print/log_print.dart';
 import 'package:manager_api/default_api_failures.dart';
-import 'package:manager_api/graphql_read.dart';
-import 'package:manager_api/helper/graphql_helper.dart';
-import 'package:manager_api/helper/rest_helper.dart';
+import 'package:manager_api/graphql/graphql_read.dart';
+import 'package:manager_api/graphql/graphql_helper.dart';
+import 'package:manager_api/graphql/graphql_request.dart';
 import 'package:manager_api/models/failure/default_failures.dart';
 import 'package:manager_api/models/failure/failure.dart';
+import 'package:manager_api/models/graphql/graphql_policies.dart';
+import 'package:manager_api/models/graphql/graphql_result.dart';
 import 'package:manager_api/models/resultlr/resultlr.dart';
-import 'package:manager_api/requests/graphql_request.dart';
-import 'package:manager_api/requests/rest_request.dart';
+import 'package:manager_api/rest/rest_helper.dart';
+import 'package:manager_api/rest/rest_request.dart';
 import 'package:manager_api/utils/graphql_cancel_token.dart';
 
-export 'package:manager_api/utils/validate_fragments.dart';
-export 'package:manager_api/utils/graphql_cancel_token.dart';
-export 'package:graphql/client.dart'
+export 'package:manager_api/models/graphql/graphql_policies.dart'
     show FetchPolicy, ErrorPolicy, CacheRereadPolicy;
+export 'package:manager_api/utils/graphql_cancel_token.dart';
+export 'package:manager_api/utils/validate_fragments.dart';
 
 DefaultFailures managerDefaultAPIFailures = DefaultFailures();
 
@@ -64,7 +65,7 @@ class ManagerAPI with ManagerToken {
   }
 
   Failure getGraphQLFailure(
-    OperationException? exception,
+    GraphQLOperationException? exception,
     List<Failure> failures,
   ) {
     final List<Failure> allFailures = [..._failures, ...failures];
@@ -77,6 +78,11 @@ class ManagerAPI with ManagerToken {
     }
 
     String? exceptionCode = getException(exception?.graphqlErrors);
+
+    if (exceptionCode == DefaultAPIFailures.noConnectionCode) {
+      return DefaultAPIFailures.getFailureByCode(
+          DefaultAPIFailures.noConnectionCode)!;
+    }
 
     if (exceptionCode == DefaultAPIFailures.timeoutCode) {
       generateLog("GraphQL Request Timeout", isError: true);
@@ -104,7 +110,7 @@ class ManagerAPI with ManagerToken {
     return resultFailure;
   }
 
-  Future<QueryResult<Object?>> getCorrectGraphQLRequest(
+  Future<GraphQLQueryResult<Object?>> getCorrectGraphQLRequest(
       GraphQLRequest request) async {
     String query = request.query ??
         (await GraphQLRead.get(
@@ -216,9 +222,9 @@ class ManagerAPI with ManagerToken {
       requestResult = requestResult.copyWith(errorPolicy: ErrorPolicy.all);
     }
 
-    final QueryResult<Object?> result =
+    final GraphQLQueryResult<Object?> result =
         await getCorrectGraphQLRequest(requestResult);
-    onGraphQLRawResult?.call(result.data);
+    onGraphQLRawResult?.call(result.data as Map<String, dynamic>?);
     stopwatch.stop();
 
     final String? exceptionCode = getException(result.exception?.graphqlErrors);
@@ -246,14 +252,15 @@ class ManagerAPI with ManagerToken {
 
     if (result.hasException && ignoreCode != null && result.data != null) {
       if (exceptionCode == ignoreCode.toString()) {
-        final dynamic returned =
-            await requestResult.returnRequest(result.data!);
+        final dynamic returned = await requestResult
+            .returnRequest(result.data! as Map<String, dynamic>);
         return Right(returned);
       }
     }
 
     if (result.data != null && !result.hasException) {
-      final dynamic returned = await requestResult.returnRequest(result.data!);
+      final dynamic returned = await requestResult
+          .returnRequest(result.data! as Map<String, dynamic>);
       return Right(returned);
     }
 
