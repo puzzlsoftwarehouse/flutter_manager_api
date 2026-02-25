@@ -381,7 +381,9 @@ class ManagerAPI with ManagerToken {
     if (!kDebugMode) return;
 
     if (!kIsWeb) {
-      if (Platform.isIOS) return debugPrint("GraphQL: $body");
+      if (Platform.isIOS) {
+        return debugPrint("GraphQL: $body");
+      }
     }
 
     LogPrint(

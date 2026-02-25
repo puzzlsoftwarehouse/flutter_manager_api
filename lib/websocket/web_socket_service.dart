@@ -304,8 +304,10 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
     );
     if (!result) return;
 
-    if (Platform.isIOS) {
-      return debugPrint("WebSocket $_type: $name");
+    if (!kIsWeb) {
+      if (Platform.isIOS) {
+        return debugPrint("WebSocket $_type: $name");
+      }
     }
 
     LogPrint(
