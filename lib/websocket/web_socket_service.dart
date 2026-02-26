@@ -90,13 +90,16 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
       checkConnection();
 
       _streamSubscription = _controller!.stream.listen((event) {
-        if (jsonDecode(event)['type'] == "pong") {
-          _pong = true;
-          if (_awaitingConnectionConfirmation) {
-            _onConnectionConfirmedByPong();
+        try {
+          final decoded = jsonDecode(event);
+          if (decoded is Map && decoded['type'] == "pong") {
+            _pong = true;
+            if (_awaitingConnectionConfirmation) {
+              _onConnectionConfirmedByPong();
+            }
+            return;
           }
-          return;
-        }
+        } catch (_) {}
         debugger(event.toString());
         stream.add(MessageEvent(event));
         setSocketType(WebSocketType.connected);
@@ -124,6 +127,11 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
     _connectionConfirmationTimeout?.cancel();
     _connectionConfirmationTimeout = null;
     _awaitingConnectionConfirmation = false;
+    _cancelTimer();
+    _streamSubscription?.cancel();
+    _streamSubscription = null;
+    _controller?.sink.close();
+    _controller = null;
   }
 
   void connecting() {
@@ -225,6 +233,7 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
       _pong = false;
 
       Future.delayed(Duration(seconds: 5), () {
+        if (_isClosed) return;
         if (!_pong && !_isClosed) {
           if (_url == null) return;
           if (!_needReconnect) {
@@ -257,14 +266,8 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
 
   @override
   void closeSection() {
-    disconnect();
-
-    _streamSubscription?.cancel();
-    _streamSubscription = null;
-    _controller?.sink.close();
     _isClosed = true;
-    _cancelTimer();
-    _controller = null;
+    disconnect();
   }
 
   void _cancelTimer() {
