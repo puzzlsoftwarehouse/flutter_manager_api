@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -11,43 +12,47 @@ import 'package:rxdart/rxdart.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class WebSocketService extends WebSocketManager with ChangeNotifier {
-  bool _isClosed = false;
-  bool enablePing = true;
-
-  String? _id;
-  @override
-  String? get id => _id;
-
-  String? _type;
-  @override
-  String? get type => _type;
-
-  WebSocketChannel? _controller;
-  @override
-  WebSocketChannel? get controller => _controller;
-
-  Timer? _timerOfConfirmationHasConnected;
-  Timer? _connectionConfirmationTimeout;
   static const Duration _connectionConfirmationDelay = Duration(seconds: 1);
   static const Duration _connectionConfirmationTimeoutDuration =
       Duration(seconds: 5);
+  static const Duration _reconnectBaseDelay = Duration(seconds: 1);
+  static const Duration _reconnectMaxDelay = Duration(seconds: 30);
+
+  String? _id;
+  String? _type;
 
   String? _url;
   Map<String, dynamic>? _parameters;
-
-  Timer? _timer;
-
+  WebSocketChannel? _controller;
   StreamSubscription? _streamSubscription;
+  WebSocketType _socketType = WebSocketType.connecting;
+  bool _isClosed = false;
+  bool enablePing = true;
 
-  bool _pong = false;
+  bool _receivedPong = false;
   bool _awaitingConnectionConfirmation = false;
   bool _isReconnectAttempt = false;
 
-  WebSocketType _socketType = WebSocketType.connecting;
-  @override
-  WebSocketType get socketType => _socketType;
+  Timer? _pingTimer;
+  Timer? _connectionConfirmationDelayTimer;
+  Timer? _connectionConfirmationTimeoutTimer;
 
   bool _needReconnect = false;
+  bool _isReconnecting = false;
+  int _reconnectAttemptCount = 0;
+  Timer? _reconnectTimer;
+
+  @override
+  String? get id => _id;
+
+  @override
+  String? get type => _type;
+
+  @override
+  WebSocketChannel? get controller => _controller;
+
+  @override
+  WebSocketType get socketType => _socketType;
 
   WebSocketService({
     String? id,
@@ -60,13 +65,22 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   }
 
   @override
+  Future<bool> create({
+    required String url,
+    Map<String, dynamic>? parameters,
+    bool enablePing = true,
+  }) async {
+    _parameters = parameters;
+    return initialize(url: url, enablePing: enablePing, parameters: parameters);
+  }
+
+  @override
   Future<bool> initialize({
     required String url,
     Map<String, dynamic>? parameters,
     bool enablePing = true,
   }) async {
     this.enablePing = enablePing;
-
     _url = url;
     _parameters = parameters;
 
@@ -79,42 +93,59 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
       _streamSubscription = null;
       _controller?.sink.close();
       _controller = null;
+
       Uri uri = Uri.parse(url);
       final Map<String, dynamic> queryParameters = {
         ...uri.queryParameters,
-        ...?parameters
+        ...?parameters,
       };
       uri = uri.replace(queryParameters: queryParameters);
       _controller = WebSocketChannel.connect(uri);
 
       checkConnection();
 
-      _streamSubscription = _controller!.stream.listen((event) {
-        try {
-          final decoded = jsonDecode(event);
-          if (decoded is Map && decoded['type'] == "pong") {
-            _pong = true;
-            if (_awaitingConnectionConfirmation) {
-              _onConnectionConfirmedByPong();
-            }
-            return;
-          }
-        } catch (_) {}
-        debugger(event.toString());
-        stream.add(MessageEvent(event));
-        setSocketType(WebSocketType.connected);
-      }, onDone: () {
-        disconnect();
-      });
-    } catch (e) {
-      debugger("WebSocket Error: $e");
+      _streamSubscription = _controller!.stream.listen(
+        _onStreamEvent,
+        onDone: _onStreamDone,
+        onError: _onStreamError,
+      );
+    } catch (error) {
+      debugger("WebSocket Error: $error");
       disconnect();
-      checkConnection();
+      _scheduleReconnect();
       return false;
     }
-    connecting();
-    confirmationOfConnection();
+
+    _emitConnecting();
+    _startConnectionConfirmation();
     return _controller != null;
+  }
+
+  void _onStreamEvent(dynamic event) {
+    try {
+      final dynamic decoded = jsonDecode(event as String);
+      if (decoded is Map && decoded['type'] == "pong") {
+        _receivedPong = true;
+        if (_awaitingConnectionConfirmation) {
+          _onConnectionConfirmedByPong();
+        }
+        return;
+      }
+    } catch (_) {}
+    debugger(event.toString());
+    stream.add(MessageEvent(event));
+    setSocketType(WebSocketType.connected);
+  }
+
+  void _onStreamDone() {
+    disconnect();
+    _scheduleReconnect();
+  }
+
+  void _onStreamError(Object error) {
+    debugger("WebSocket Stream Error: $error");
+    disconnect();
+    _scheduleReconnect();
   }
 
   void disconnect() {
@@ -122,38 +153,38 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
     stream.add(ConnectionEvent(WebSocketType.disconnected));
     setSocketType(WebSocketType.disconnected);
 
-    _timerOfConfirmationHasConnected?.cancel();
-    _timerOfConfirmationHasConnected = null;
-    _connectionConfirmationTimeout?.cancel();
-    _connectionConfirmationTimeout = null;
+    _connectionConfirmationDelayTimer?.cancel();
+    _connectionConfirmationDelayTimer = null;
+    _connectionConfirmationTimeoutTimer?.cancel();
+    _connectionConfirmationTimeoutTimer = null;
     _awaitingConnectionConfirmation = false;
-    _cancelTimer();
+
+    _cancelPingTimer();
     _streamSubscription?.cancel();
     _streamSubscription = null;
     _controller?.sink.close();
     _controller = null;
   }
 
-  void connecting() {
+  void _emitConnecting() {
     debugger("WebSocket Connecting: $_url");
     stream.add(ConnectionEvent(WebSocketType.connecting));
     setSocketType(WebSocketType.connecting);
   }
 
-  void confirmationOfConnection() {
-    _timerOfConfirmationHasConnected?.cancel();
-    _connectionConfirmationTimeout?.cancel();
+  void _startConnectionConfirmation() {
+    _connectionConfirmationDelayTimer?.cancel();
+    _connectionConfirmationTimeoutTimer?.cancel();
     _awaitingConnectionConfirmation = false;
-
     _isReconnectAttempt = _needReconnect;
 
     if (!enablePing) {
-      _timerOfConfirmationHasConnected =
+      _connectionConfirmationDelayTimer =
           Timer(_connectionConfirmationDelay, () {
         if (_controller == null || _isClosed) return;
+        _resetReconnectState();
         if (_isReconnectAttempt) {
           debugger("WebSocket Reconnected: $_url");
-          _needReconnect = false;
           stream.add(ConnectionEvent(WebSocketType.reconnected));
         } else {
           debugger("WebSocket Connected: $_url");
@@ -164,44 +195,35 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
       return;
     }
 
-    _timerOfConfirmationHasConnected = Timer(_connectionConfirmationDelay, () {
+    _connectionConfirmationDelayTimer = Timer(_connectionConfirmationDelay, () {
       if (_controller == null || _isClosed) return;
-
       _awaitingConnectionConfirmation = true;
-      _pong = false;
+      _receivedPong = false;
       _controller!.sink.add(jsonEncode({"type": "ping"}));
 
-      _connectionConfirmationTimeout?.cancel();
-      _connectionConfirmationTimeout = Timer(
+      _connectionConfirmationTimeoutTimer?.cancel();
+      _connectionConfirmationTimeoutTimer = Timer(
         _connectionConfirmationTimeoutDuration,
-        checkPongReconnection,
+        _onConnectionConfirmationTimeout,
       );
     });
   }
 
-  void checkPongReconnection() {
+  void _onConnectionConfirmationTimeout() {
     if (!_awaitingConnectionConfirmation || _isClosed) return;
     debugger("WebSocket connection confirmation timeout (no pong): $_url");
     _awaitingConnectionConfirmation = false;
     _controller?.sink.close();
     disconnect();
-    if (_url != null && _needReconnect) {
-      _cancelTimer();
-      _needReconnect = true;
-      initialize(
-        url: _url!,
-        parameters: _parameters ?? <String, dynamic>{},
-      );
-    }
+    _scheduleReconnect();
   }
 
   void _onConnectionConfirmedByPong() {
     if (!_awaitingConnectionConfirmation || _isClosed) return;
-
-    _connectionConfirmationTimeout?.cancel();
-    _connectionConfirmationTimeout = null;
+    _connectionConfirmationTimeoutTimer?.cancel();
+    _connectionConfirmationTimeoutTimer = null;
     _awaitingConnectionConfirmation = false;
-    _needReconnect = false;
+    _resetReconnectState();
 
     if (_isReconnectAttempt) {
       debugger("WebSocket Reconnected (confirmed by pong): $_url");
@@ -218,44 +240,69 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
     if (!enablePing) return;
     if (_controller == null || _isClosed) return;
 
-    _timer?.cancel();
-    _timer = Timer.periodic(Duration(seconds: 10), (timer) {
-      if (_controller == null) {
-        _cancelTimer();
-        return;
-      }
-      if (!enablePing) {
-        _cancelTimer();
+    _pingTimer?.cancel();
+    _pingTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (_controller == null || !enablePing) {
+        _cancelPingTimer();
         return;
       }
 
       _controller!.sink.add(jsonEncode({"type": "ping"}));
-      _pong = false;
+      _receivedPong = false;
 
-      Future.delayed(Duration(seconds: 5), () {
+      Future.delayed(const Duration(seconds: 5), () {
         if (_isClosed) return;
-        if (!_pong && !_isClosed) {
+        if (!_receivedPong) {
           if (_url == null) return;
-          if (!_needReconnect) {
-            debugger("WebSocket  Don`t have pong");
-
-            _controller?.sink.close();
-            disconnect();
-          }
-
-          _cancelTimer();
-          _needReconnect = true;
-          initialize(
-            url: _url!,
-            parameters: _parameters ?? <String, dynamic>{},
-          );
-          return;
-        }
-        if (_isClosed) {
-          _cancelTimer();
+          debugger("WebSocket Don't have pong");
+          _controller?.sink.close();
+          disconnect();
+          _scheduleReconnect();
         }
       });
     });
+  }
+
+  void _scheduleReconnect() {
+    if (_isClosed || _isReconnecting || _url == null) return;
+
+    _isReconnecting = true;
+    _needReconnect = true;
+
+    final int exponent = _reconnectAttemptCount.clamp(0, 5);
+    final Duration baseDelay = _reconnectBaseDelay * (1 << exponent);
+    final Duration cappedDelay =
+        baseDelay > _reconnectMaxDelay ? _reconnectMaxDelay : baseDelay;
+
+    final int jitterMilliseconds =
+        (cappedDelay.inMilliseconds * 0.3 * Random().nextDouble()).round();
+    final Duration delayWithJitter =
+        cappedDelay + Duration(milliseconds: jitterMilliseconds);
+
+    _reconnectAttemptCount++;
+
+    debugger(
+        "WebSocket scheduling reconnect attempt $_reconnectAttemptCount in ${delayWithJitter.inMilliseconds}ms: $_url");
+
+    _reconnectTimer?.cancel();
+    _reconnectTimer = Timer(delayWithJitter, () {
+      _isReconnecting = false;
+      if (_isClosed || _url == null) return;
+      initialize(url: _url!, parameters: _parameters);
+    });
+  }
+
+  void _resetReconnectState() {
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    _reconnectAttemptCount = 0;
+    _isReconnecting = false;
+    _needReconnect = false;
+  }
+
+  void _cancelPingTimer() {
+    _pingTimer?.cancel();
+    _pingTimer = null;
   }
 
   @override
@@ -267,28 +314,10 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   @override
   void closeSection() {
     _isClosed = true;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    _isReconnecting = false;
     disconnect();
-  }
-
-  void _cancelTimer() {
-    _timer?.cancel();
-    _timer = null;
-  }
-
-  @override
-  Future<bool> create({
-    required String url,
-    Map<String, dynamic>? parameters,
-    bool enablePing = true,
-  }) async {
-    _parameters = parameters;
-    bool success = await initialize(
-      url: url,
-      enablePing: enablePing,
-      parameters: parameters,
-    );
-
-    return success;
   }
 
   @override
@@ -301,16 +330,15 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   void debugger(String name) {
     if (kReleaseMode) return;
 
-    bool result = const bool.fromEnvironment(
+    final bool isLoggingEnabled = const bool.fromEnvironment(
       "WEBSOCKETLOGGER",
       defaultValue: true,
     );
-    if (!result) return;
+    if (!isLoggingEnabled) return;
 
-    if (!kIsWeb) {
-      if (Platform.isIOS) {
-        return debugPrint("WebSocket $_type: $name");
-      }
+    if (!kIsWeb && Platform.isIOS) {
+      debugPrint("WebSocket $_type: $name");
+      return;
     }
 
     LogPrint(
@@ -324,9 +352,10 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
 
   @override
   void dispose() {
-    _timer?.cancel();
-    _timerOfConfirmationHasConnected?.cancel();
-    _connectionConfirmationTimeout?.cancel();
+    _pingTimer?.cancel();
+    _reconnectTimer?.cancel();
+    _connectionConfirmationDelayTimer?.cancel();
+    _connectionConfirmationTimeoutTimer?.cancel();
     closeSection();
     stream.close();
     super.dispose();
