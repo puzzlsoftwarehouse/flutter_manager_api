@@ -13,6 +13,7 @@ import 'package:manager_api/models/failure/default_failures.dart';
 import 'package:manager_api/models/failure/failure.dart';
 import 'package:manager_api/models/graphql/graphql_policies.dart';
 import 'package:manager_api/models/graphql/graphql_result.dart';
+import 'package:manager_api/models/graphql/graphql_retry_options.dart';
 import 'package:manager_api/models/resultlr/resultlr.dart';
 import 'package:manager_api/rest/rest_helper.dart';
 import 'package:manager_api/rest/rest_request.dart';
@@ -20,6 +21,7 @@ import 'package:manager_api/utils/graphql_cancel_token.dart';
 
 export 'package:manager_api/models/graphql/graphql_policies.dart'
     show FetchPolicy, ErrorPolicy, CacheRereadPolicy;
+export 'package:manager_api/models/graphql/graphql_retry_options.dart';
 export 'package:manager_api/utils/graphql_cancel_token.dart';
 export 'package:manager_api/utils/validate_fragments.dart';
 
@@ -34,6 +36,7 @@ class ManagerAPI with ManagerToken {
   static String? _token;
   static Map<String, String>? _headerCustom;
   Duration? timeOutDuration;
+  final GraphQLRetryOptions graphQLRetryOptions;
 
   late GraphQLHelper _api;
   late RestHelper _restAPI;
@@ -46,10 +49,15 @@ class ManagerAPI with ManagerToken {
     List<Failure> failures = const <Failure>[],
     this.headers,
     this.timeOutDuration,
+    this.graphQLRetryOptions = const GraphQLRetryOptions(),
   }) : _failures = [...DefaultAPIFailures.failures, ...failures] {
     managerDefaultAPIFailures = defaultFailures;
     _restAPI = RestHelper();
-    _api = GraphQLHelper(timeOutDuration: timeOutDuration);
+    _api = GraphQLHelper(
+      timeOutDuration: timeOutDuration,
+      defaultRetryOptions: graphQLRetryOptions,
+      log: generateLog,
+    );
   }
 
   Failure getDefaultFailure(String? text) => Failure(
@@ -130,6 +138,8 @@ class ManagerAPI with ManagerToken {
         durationTimeOut: request.timeOutDuration ?? timeOutDuration,
         errorPolicy: request.errorPolicy,
         cancelToken: request.cancelToken,
+        retryOptions: request.retryOptions,
+        logContext: generateRequestLogBase(requestResult: request),
         cacheRereadPolicy:
             request.cacheRereadPolicy ?? CacheRereadPolicy.ignoreAll,
         fetchPolicy: request.fetchPolicy ?? FetchPolicy.networkOnly,
@@ -144,6 +154,8 @@ class ManagerAPI with ManagerToken {
       durationTimeOut: request.timeOutDuration ?? timeOutDuration,
       errorPolicy: request.errorPolicy,
       cancelToken: request.cancelToken,
+      retryOptions: request.retryOptions,
+      logContext: generateRequestLogBase(requestResult: request),
       cacheRereadPolicy:
           request.cacheRereadPolicy ?? CacheRereadPolicy.ignoreAll,
       fetchPolicy: request.fetchPolicy ?? FetchPolicy.networkOnly,
@@ -348,6 +360,19 @@ class ManagerAPI with ManagerToken {
     GraphQLRequest<dynamic>? requestResult,
     Stopwatch? stopwatch,
   }) {
+    final String base = generateRequestLogBase(
+      restRequest: restRequest,
+      requestResult: requestResult,
+    );
+    final int elapsedMs = stopwatch?.elapsedMilliseconds ?? 0;
+
+    return "$base - ${elapsedMs}ms";
+  }
+
+  String generateRequestLogBase({
+    RestRequest? restRequest,
+    GraphQLRequest<dynamic>? requestResult,
+  }) {
     final String type = requestResult?.type.toString().split(".").last ??
         restRequest?.type.toString().split(".").last ??
         "".toUpperCase();
@@ -356,9 +381,8 @@ class ManagerAPI with ManagerToken {
     final Map<String, dynamic> variables =
         requestResult?.variables ?? restRequest?.body ?? <String, dynamic>{};
     final String path = requestResult?.path.toUpperCase() ?? "";
-    final int elapsedMs = stopwatch?.elapsedMilliseconds ?? 0;
 
-    return "[$path] [$type $name] - $variables - ${elapsedMs}ms";
+    return "[$path] [$type $name] - $variables";
   }
 
   Color _getLogTitleColor({

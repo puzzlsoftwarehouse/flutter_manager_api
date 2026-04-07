@@ -1,5 +1,6 @@
 import 'package:manager_api/models/failure/failure.dart';
 import 'package:manager_api/models/graphql/graphql_policies.dart';
+import 'package:manager_api/models/graphql/graphql_retry_options.dart';
 import 'package:manager_api/requests/request_api.dart';
 import 'package:manager_api/utils/graphql_cancel_token.dart';
 
@@ -17,6 +18,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
   final FetchPolicy? fetchPolicy;
   final GraphQLCancelToken? cancelToken;
   final String? query;
+  final GraphQLRetryOptions? retryOptions;
 
   GraphQLRequest({
     required this.path,
@@ -32,6 +34,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
     this.fetchPolicy,
     this.cancelToken,
     this.query,
+    this.retryOptions,
     List<Failure> failures = const <Failure>[],
     super.skipRequest,
   });
@@ -50,6 +53,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
     GraphQLCancelToken? cancelToken,
     List<Failure>? failures,
     String? query,
+    GraphQLRetryOptions? retryOptions,
   }) {
     return GraphQLRequest(
       path: path ?? this.path,
@@ -67,6 +71,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
       returnRequest: returnRequest,
       skipRequest: skipRequest,
       query: query ?? this.query,
+      retryOptions: retryOptions ?? this.retryOptions,
     );
   }
 
@@ -76,6 +81,13 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
     if (s == 'mutation') return RequestGraphQLType.mutation;
     if (s == 'subscription') return RequestGraphQLType.subscription;
     return RequestGraphQLType.query;
+  }
+
+  static GraphQLRetryOptions? _retryOptionsFromJson(dynamic value) {
+    if (value is Map) {
+      return GraphQLRetryOptions.fromJson(Map<String, dynamic>.from(value));
+    }
+    return null;
   }
 
   factory GraphQLRequest.fromJson(Map<String, dynamic> json) => GraphQLRequest(
@@ -100,6 +112,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
             : null,
         cancelToken: json['cancelToken'],
         query: json['query'],
+        retryOptions: _retryOptionsFromJson(json['retryOptions']),
       );
 
   @override
@@ -119,5 +132,6 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
         "cacheRereadPolicy": cacheRereadPolicy,
         "fetchPolicy": fetchPolicy,
         "query": query,
+        "retryOptions": retryOptions?.toJson,
       };
 }

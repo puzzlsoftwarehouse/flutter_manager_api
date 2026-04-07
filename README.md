@@ -69,10 +69,28 @@ and name would be the name of the query or mutation
 import 'package:manager_api/manager_api.dart';
 
 void main()async{
- ManagerAPI managerAPI = ManagerAPI();
+ ManagerAPI managerAPI = ManagerAPI(
+   graphQLRetryOptions: const GraphQLRetryOptions(
+     enabled: true,
+     maxAttempts: 3,
+     initialDelay: Duration(seconds: 1),
+   ),
+ );
  ResultLR<Failure,dynamic> result = await manager.request(name:"login",request:GraphQLLogin.loginWithEmailAndPassword(email: "email",password: "password"));
  //your code....
 }
+```
+
+You can disable or override GraphQL retry per request:
+
+```dart
+GraphQLRequest<ResultLR<Failure, User>>(
+  name: "login",
+  path: "login.graphql",
+  type: RequestGraphQLType.mutation,
+  retryOptions: const GraphQLRetryOptions(enabled: false),
+  returnRequest: (data) => User.fromJson(data['Login']['authToken']),
+);
 ```
 
 

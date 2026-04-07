@@ -3,15 +3,29 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:manager_api/models/graphql/graphql_policies.dart';
 import 'package:manager_api/models/graphql/graphql_result.dart';
+import 'package:manager_api/models/graphql/graphql_retry_options.dart';
 import 'package:manager_api/utils/graphql_cancel_token.dart';
+
+typedef GraphQLLog = void Function(
+  String body, {
+  bool isError,
+  bool isAlert,
+  bool isCanceled,
+});
 
 class GraphQLHelper implements IGraphQLHelper {
   Duration? timeOutDuration;
+  final GraphQLRetryOptions defaultRetryOptions;
+  final GraphQLLog? log;
 
   final Dio _dio = Dio();
   Dio get _client => _dio;
 
-  GraphQLHelper({this.timeOutDuration});
+  GraphQLHelper({
+    this.timeOutDuration,
+    this.defaultRetryOptions = const GraphQLRetryOptions(),
+    this.log,
+  });
 
   Duration get _defaultTimeout => const Duration(seconds: 15);
 
@@ -114,6 +128,8 @@ class GraphQLHelper implements IGraphQLHelper {
     Duration? durationTimeOut,
     ErrorPolicy? errorPolicy,
     GraphQLCancelToken? cancelToken,
+    GraphQLRetryOptions? retryOptions,
+    String? logContext,
     CacheRereadPolicy cacheRereadPolicy = CacheRereadPolicy.ignoreAll,
     FetchPolicy fetchPolicy = FetchPolicy.networkOnly,
   }) async =>
@@ -125,6 +141,8 @@ class GraphQLHelper implements IGraphQLHelper {
         durationTimeOut: durationTimeOut,
         errorPolicy: errorPolicy,
         cancelToken: cancelToken,
+        retryOptions: retryOptions,
+        logContext: logContext,
       );
 
   @override
@@ -136,6 +154,8 @@ class GraphQLHelper implements IGraphQLHelper {
     Duration? durationTimeOut,
     ErrorPolicy? errorPolicy,
     GraphQLCancelToken? cancelToken,
+    GraphQLRetryOptions? retryOptions,
+    String? logContext,
     CacheRereadPolicy cacheRereadPolicy = CacheRereadPolicy.ignoreAll,
     FetchPolicy fetchPolicy = FetchPolicy.networkOnly,
   }) async =>
@@ -147,6 +167,8 @@ class GraphQLHelper implements IGraphQLHelper {
         durationTimeOut: durationTimeOut,
         errorPolicy: errorPolicy,
         cancelToken: cancelToken,
+        retryOptions: retryOptions,
+        logContext: logContext,
       );
 
   Future<GraphQLQueryResult<Object?>> _execute({
@@ -157,11 +179,67 @@ class GraphQLHelper implements IGraphQLHelper {
     Duration? durationTimeOut,
     ErrorPolicy? errorPolicy,
     GraphQLCancelToken? cancelToken,
+    GraphQLRetryOptions? retryOptions,
+    String? logContext,
   }) async {
     if (cancelToken != null && cancelToken.isCancelled) {
       return _cancelledResult();
     }
 
+    final GraphQLRetryOptions resolvedRetryOptions =
+        retryOptions ?? defaultRetryOptions;
+    final int attempts =
+        resolvedRetryOptions.enabled ? resolvedRetryOptions.maxAttempts : 1;
+
+    for (int attempt = 1; attempt <= attempts; attempt++) {
+      final outcome = await _performAttempt(
+        data: data,
+        token: token,
+        headers: headers,
+        variables: variables,
+        durationTimeOut: durationTimeOut,
+        errorPolicy: errorPolicy,
+        cancelToken: cancelToken,
+      );
+
+      if (!outcome.shouldRetry || attempt == attempts) {
+        return outcome.result;
+      }
+
+      final delay = _retryDelay(
+        initialDelay: resolvedRetryOptions.initialDelay,
+        attempt: attempt,
+      );
+
+      _logRetry(
+        logContext: logContext,
+        attempt: attempt,
+        totalAttempts: attempts,
+        delay: delay,
+      );
+
+      final shouldContinue = await _waitBeforeRetry(
+        delay: delay,
+        cancelToken: cancelToken,
+      );
+
+      if (!shouldContinue) {
+        return _cancelledResult();
+      }
+    }
+
+    return _noConnectionResult();
+  }
+
+  Future<_ExecutionOutcome> _performAttempt({
+    required String data,
+    String? token,
+    Map<String, String>? headers,
+    Map<String, dynamic> variables = const {},
+    Duration? durationTimeOut,
+    ErrorPolicy? errorPolicy,
+    GraphQLCancelToken? cancelToken,
+  }) async {
     CancelToken? dioCancelToken;
     if (cancelToken != null) {
       dioCancelToken = CancelToken();
@@ -200,7 +278,10 @@ class GraphQLHelper implements IGraphQLHelper {
               .then<GraphQLQueryResult<Object?>>((_) => _cancelledResult()),
         ]);
         if (cancelToken.isCancelled) {
-          return _cancelledResult();
+          return _ExecutionOutcome(
+            result: _cancelledResult(),
+            shouldRetry: false,
+          );
         }
       } else {
         result = await resultFuture
@@ -208,28 +289,91 @@ class GraphQLHelper implements IGraphQLHelper {
             .then((r) => _handleResponse(r, errorPolicy));
       }
 
-      return result;
+      return _ExecutionOutcome(result: result, shouldRetry: false);
     } on _TimeoutException {
-      return _timeOutResult();
+      return _ExecutionOutcome(result: _timeOutResult(), shouldRetry: false);
     } on DioException catch (e) {
       if (cancelToken != null && cancelToken.isCancelled) {
-        return _cancelledResult();
+        return _ExecutionOutcome(
+          result: _cancelledResult(),
+          shouldRetry: false,
+        );
       }
       if (e.type == DioExceptionType.cancel) {
-        return _cancelledResult();
+        return _ExecutionOutcome(
+          result: _cancelledResult(),
+          shouldRetry: false,
+        );
       }
       if (e.type == DioExceptionType.connectionTimeout ||
           e.type == DioExceptionType.receiveTimeout ||
           e.type == DioExceptionType.sendTimeout) {
-        return _timeOutResult();
+        return _ExecutionOutcome(result: _timeOutResult(), shouldRetry: false);
       }
-      return _noConnectionResult();
+      if (e.response != null) {
+        final statusCode = e.response?.statusCode ?? 0;
+        return _ExecutionOutcome(
+          result: _handleResponse(e.response!, errorPolicy),
+          shouldRetry: statusCode >= 500,
+        );
+      }
+      return _ExecutionOutcome(
+        result: _noConnectionResult(),
+        shouldRetry: true,
+      );
     } catch (_) {
       if (cancelToken != null && cancelToken.isCancelled) {
-        return _cancelledResult();
+        return _ExecutionOutcome(
+          result: _cancelledResult(),
+          shouldRetry: false,
+        );
       }
-      return _noConnectionResult();
+      return _ExecutionOutcome(
+        result: _noConnectionResult(),
+        shouldRetry: true,
+      );
     }
+  }
+
+  Duration _retryDelay({
+    required Duration initialDelay,
+    required int attempt,
+  }) {
+    final multiplier = 1 << (attempt - 1);
+    return Duration(
+      milliseconds: initialDelay.inMilliseconds * multiplier,
+    );
+  }
+
+  Future<bool> _waitBeforeRetry({
+    required Duration delay,
+    required GraphQLCancelToken? cancelToken,
+  }) async {
+    if (cancelToken == null) {
+      await Future.delayed(delay);
+      return true;
+    }
+
+    await Future.any<void>([
+      Future<void>.delayed(delay),
+      cancelToken.whenCancelled,
+    ]);
+
+    return !cancelToken.isCancelled;
+  }
+
+  void _logRetry({
+    required String? logContext,
+    required int attempt,
+    required int totalAttempts,
+    required Duration delay,
+  }) {
+    log?.call(
+      '${logContext ?? 'GraphQL request'} - '
+      'Attempt $attempt/$totalAttempts failed. '
+      'Retrying in ${delay.inSeconds}s.',
+      isAlert: true,
+    );
   }
 
   GraphQLQueryResult<Object?> _handleResponse(
@@ -264,6 +408,8 @@ abstract class IGraphQLHelper {
     Duration? durationTimeOut,
     ErrorPolicy? errorPolicy,
     GraphQLCancelToken? cancelToken,
+    GraphQLRetryOptions? retryOptions,
+    String? logContext,
   });
 
   Future<GraphQLQueryResult<Object?>> mutation({
@@ -274,5 +420,17 @@ abstract class IGraphQLHelper {
     Duration? durationTimeOut,
     ErrorPolicy? errorPolicy,
     GraphQLCancelToken? cancelToken,
+    GraphQLRetryOptions? retryOptions,
+    String? logContext,
+  });
+}
+
+class _ExecutionOutcome {
+  final GraphQLQueryResult<Object?> result;
+  final bool shouldRetry;
+
+  const _ExecutionOutcome({
+    required this.result,
+    required this.shouldRetry,
   });
 }
