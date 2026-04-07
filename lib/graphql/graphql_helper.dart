@@ -291,7 +291,7 @@ class GraphQLHelper implements IGraphQLHelper {
 
       return _ExecutionOutcome(result: result, shouldRetry: false);
     } on _TimeoutException {
-      return _ExecutionOutcome(result: _timeOutResult(), shouldRetry: true);
+      return _ExecutionOutcome(result: _timeOutResult(), shouldRetry: false);
     } on DioException catch (e) {
       if (cancelToken != null && cancelToken.isCancelled) {
         return _ExecutionOutcome(
@@ -308,7 +308,7 @@ class GraphQLHelper implements IGraphQLHelper {
       if (e.type == DioExceptionType.connectionTimeout ||
           e.type == DioExceptionType.receiveTimeout ||
           e.type == DioExceptionType.sendTimeout) {
-        return _ExecutionOutcome(result: _timeOutResult(), shouldRetry: true);
+        return _ExecutionOutcome(result: _timeOutResult(), shouldRetry: false);
       }
       if (e.response != null) {
         final statusCode = e.response?.statusCode ?? 0;
