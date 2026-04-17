@@ -114,7 +114,7 @@ class RestHelper {
         return result;
       }
 
-      int? exceptionCode = result['exception_code'];
+      int? exceptionCode = int.tryParse(result['exception_code'].toString());
 
       String? errorMessage = (result['detail'] is String)
           ? result['detail']
