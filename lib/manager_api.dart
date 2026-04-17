@@ -404,6 +404,12 @@ class ManagerAPI with ManagerToken {
   }) {
     if (!kDebugMode) return;
 
+    final bool isLoggingEnabled = const bool.fromEnvironment(
+      "REQUESTLOGGER",
+      defaultValue: true,
+    );
+    if (!isLoggingEnabled) return;
+
     if (!kIsWeb) {
       if (Platform.isIOS) {
         return debugPrint("GraphQL: $body");
