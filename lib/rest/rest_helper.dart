@@ -10,6 +10,14 @@ import 'package:rxdart/rxdart.dart';
 class RestHelper {
   static const Duration _defaultTimeout = Duration(minutes: 1);
 
+  late final Dio _dio = Dio(
+    BaseOptions(
+      connectTimeout: _defaultTimeout,
+      receiveTimeout: _defaultTimeout,
+      sendTimeout: _defaultTimeout,
+    ),
+  );
+
   Future<Map<String, dynamic>> getRequest({
     required String url,
     Map<String, String>? headers = const {},
@@ -17,15 +25,17 @@ class RestHelper {
     Duration? timeout,
   }) async {
     return await tryRequest(() async {
-      Response response = await Dio()
-          .get(
-            url,
-            options: Options(
-              headers: headers,
-              responseType: responseType ?? ResponseType.json,
-            ),
-          )
-          .timeout(timeout ?? _defaultTimeout);
+      final Duration effectiveTimeout = timeout ?? _defaultTimeout;
+      final Response response = await _dio.get<dynamic>(
+        url,
+        options: Options(
+          headers: headers,
+          responseType: responseType ?? ResponseType.json,
+          connectTimeout: effectiveTimeout,
+          receiveTimeout: effectiveTimeout,
+          sendTimeout: effectiveTimeout,
+        ),
+      );
 
       bool isSuccess = response.statusCode == 200;
       if (isSuccess) return _successData(response);
@@ -44,15 +54,18 @@ class RestHelper {
     Duration? timeout,
   }) async {
     return await tryRequest(() async {
-      Response response = await Dio()
-          .post(
-            url,
-            options: Options(
-              headers: headers,
-            ),
-            data: body,
-          )
-          .timeout(timeout ?? _defaultTimeout);
+      final Duration effectiveTimeout = timeout ?? _defaultTimeout;
+      final Response response = await _dio.post<dynamic>(
+        url,
+        data: body,
+        options: Options(
+          headers: headers,
+          responseType: ResponseType.json,
+          connectTimeout: effectiveTimeout,
+          receiveTimeout: effectiveTimeout,
+          sendTimeout: effectiveTimeout,
+        ),
+      );
 
       bool isSuccess = response.statusCode == 200;
       if (isSuccess) return _successData(response);
@@ -142,7 +155,9 @@ class RestHelper {
     };
   }
 
-  Future<Map<String, dynamic>> tryRequest(Function() request) async {
+  Future<Map<String, dynamic>> tryRequest(
+    Future<Map<String, dynamic>> Function() request,
+  ) async {
     try {
       return await request();
     } on DioException catch (e) {
