@@ -18,16 +18,29 @@ class GraphQLHelper implements IGraphQLHelper {
   final GraphQLRetryOptions defaultRetryOptions;
   final GraphQLLog? log;
 
-  final Dio _dio = Dio();
+  late final Dio _dio;
   Dio get _client => _dio;
 
   GraphQLHelper({
     this.timeOutDuration,
     this.defaultRetryOptions = const GraphQLRetryOptions(),
     this.log,
-  });
+  }) {
+    final Duration base = timeOutDuration ?? _defaultTimeoutDuration;
 
-  Duration get _defaultTimeout => const Duration(seconds: 15);
+    _dio = Dio(
+      BaseOptions(
+        connectTimeout: base,
+        receiveTimeout: base,
+        sendTimeout: base,
+        responseType: ResponseType.json,
+        contentType: Headers.jsonContentType,
+      ),
+    );
+  }
+
+  static const Duration _defaultTimeoutDuration = Duration(seconds: 15);
+  Duration get _defaultTimeout => _defaultTimeoutDuration;
 
   String _url(Map<String, String>? headers) {
     if (headers != null && headers['apiUrl'] != null) {
@@ -260,11 +273,12 @@ class GraphQLHelper implements IGraphQLHelper {
         data: {'query': data, 'variables': variables},
         options: Options(
           headers: _requestHeaders(token, headers),
+          connectTimeout: timeout,
           sendTimeout: timeout,
           receiveTimeout: timeout,
-          contentType: 'application/json',
+          contentType: Headers.jsonContentType,
           responseType: ResponseType.json,
-          validateStatus: (status) => status != null && status < 500,
+          validateStatus: (int? status) => status != null && status < 500,
         ),
         cancelToken: dioCancelToken,
       );

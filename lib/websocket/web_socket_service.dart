@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -34,6 +33,7 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   bool _isReconnectAttempt = false;
 
   Timer? _pingTimer;
+  Timer? _pongCheckTimer;
   Timer? _connectionConfirmationDelayTimer;
   Timer? _connectionConfirmationTimeoutTimer;
 
@@ -250,7 +250,9 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
       _controller!.sink.add(jsonEncode({"type": "ping"}));
       _receivedPong = false;
 
-      Future.delayed(const Duration(seconds: 5), () {
+      _pongCheckTimer?.cancel();
+      _pongCheckTimer = Timer(const Duration(seconds: 5), () {
+        _pongCheckTimer = null;
         if (_isClosed) return;
         if (!_receivedPong) {
           if (_url == null) return;
@@ -301,6 +303,8 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   }
 
   void _cancelPingTimer() {
+    _pongCheckTimer?.cancel();
+    _pongCheckTimer = null;
     _pingTimer?.cancel();
     _pingTimer = null;
   }
@@ -322,6 +326,7 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
 
   @override
   void setSocketType(WebSocketType value) {
+    if (_socketType == value) return;
     _socketType = value;
     notifyListeners();
   }
@@ -336,7 +341,7 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
     );
     if (!isLoggingEnabled) return;
 
-    if (!kIsWeb && Platform.isIOS) {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
       debugPrint("WebSocket $_type: $name");
       return;
     }
@@ -352,7 +357,7 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
 
   @override
   void dispose() {
-    _pingTimer?.cancel();
+    _cancelPingTimer();
     _reconnectTimer?.cancel();
     _connectionConfirmationDelayTimer?.cancel();
     _connectionConfirmationTimeoutTimer?.cancel();

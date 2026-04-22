@@ -225,7 +225,13 @@ class _NativeSendMediaWorker {
     required Map<String, String>? headers,
     required void Function(int progress) onProgress,
   }) async {
-    final Dio uploadClient = Dio();
+    final Dio uploadClient = Dio(
+      BaseOptions(
+        connectTimeout: const Duration(minutes: 2),
+        receiveTimeout: const Duration(minutes: 2),
+        sendTimeout: const Duration(minutes: 30),
+      ),
+    );
     try {
       final MultipartFile multipartFile = fileBytes != null
           ? MultipartFile.fromBytes(fileBytes, filename: fileName)
