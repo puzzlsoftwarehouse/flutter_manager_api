@@ -57,11 +57,11 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
   WebSocketService({
     String? id,
     required String type,
-    BehaviorSubject<SocketEvent>? stream,
+    Subject<SocketEvent>? stream,
   }) {
     _id = id ?? DateTime.now().millisecondsSinceEpoch.toString();
     _type = type;
-    super.stream = stream ?? BehaviorSubject<SocketEvent>();
+    super.stream = stream ?? PublishSubject<SocketEvent>();
   }
 
   @override

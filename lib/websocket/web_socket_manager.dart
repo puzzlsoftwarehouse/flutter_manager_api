@@ -15,14 +15,14 @@ class ConnectionEvent extends SocketEvent {
 }
 
 abstract class WebSocketManager {
-  late BehaviorSubject<SocketEvent> stream;
+  late Subject<SocketEvent> stream;
   String? get id;
   String? get type;
   WebSocketType get socketType;
 
   WebSocketChannel? get controller;
 
-  WebSocketManager({BehaviorSubject<SocketEvent>? stream});
+  WebSocketManager({Subject<SocketEvent>? stream});
 
   Future<bool> initialize({
     required String url,
