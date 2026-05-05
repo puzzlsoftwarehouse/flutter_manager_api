@@ -25,6 +25,12 @@ export 'package:manager_api/models/graphql/graphql_retry_options.dart';
 export 'package:manager_api/utils/graphql_cancel_token.dart';
 export 'package:manager_api/utils/validate_fragments.dart';
 
+part 'manager_api/logging/request_log_formatting.dart';
+
+part 'manager_api/logging/request_log_palette.dart';
+
+part 'manager_api/logging/manager_api_request_logging.dart';
+
 DefaultFailures managerDefaultAPIFailures = DefaultFailures();
 
 mixin class ManagerToken {
@@ -32,7 +38,7 @@ mixin class ManagerToken {
   Map<String, String>? headerCustom;
 }
 
-class ManagerAPI with ManagerToken {
+class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
   static String? _token;
   static Map<String, String>? _headerCustom;
   Duration? timeOutDuration;
@@ -53,10 +59,14 @@ class ManagerAPI with ManagerToken {
   }) : _failures = [...DefaultAPIFailures.failures, ...failures] {
     managerDefaultAPIFailures = defaultFailures;
     _restAPI = RestHelper();
+
+    final bool emitLogs =
+        kDebugMode && ManagerApiRequestLogging.requestLoggerFromEnvironment;
+
     _api = GraphQLHelper(
       timeOutDuration: timeOutDuration,
       defaultRetryOptions: graphQLRetryOptions,
-      log: generateLog,
+      log: emitLogs ? generateLog : null,
     );
   }
 
@@ -129,6 +139,10 @@ class ManagerAPI with ManagerToken {
           requestName: request.name,
         ));
 
+    final String? logContext = _emitRequestLogs
+        ? generateRequestLogBase(requestResult: request)
+        : null;
+
     if (request.type == RequestGraphQLType.mutation) {
       return await _api.mutation(
         data: query,
@@ -139,7 +153,7 @@ class ManagerAPI with ManagerToken {
         errorPolicy: request.errorPolicy,
         cancelToken: request.cancelToken,
         retryOptions: request.retryOptions,
-        logContext: generateRequestLogBase(requestResult: request),
+        logContext: logContext,
         cacheRereadPolicy:
             request.cacheRereadPolicy ?? CacheRereadPolicy.ignoreAll,
         fetchPolicy: request.fetchPolicy ?? FetchPolicy.networkOnly,
@@ -155,7 +169,7 @@ class ManagerAPI with ManagerToken {
       errorPolicy: request.errorPolicy,
       cancelToken: request.cancelToken,
       retryOptions: request.retryOptions,
-      logContext: generateRequestLogBase(requestResult: request),
+      logContext: logContext,
       cacheRereadPolicy:
           request.cacheRereadPolicy ?? CacheRereadPolicy.ignoreAll,
       fetchPolicy: request.fetchPolicy ?? FetchPolicy.networkOnly,
@@ -189,20 +203,32 @@ class ManagerAPI with ManagerToken {
     void Function(Map<String, dynamic>? rawResult)? onGraphQLRawResult,
   }) async {
     if (request?['typeAPI'] == 'rest') {
-      final Stopwatch stopwatch = Stopwatch()..start();
       final RestRequest requestResult = convertRestRequest(request);
       if (requestResult.skipRequest != null) {
-        generateLog("REQUEST SKIPPED: ${requestResult.name}", isAlert: true);
+        if (_emitRequestLogs) {
+          generateLog("REQUEST SKIPPED: ${requestResult.name}", isAlert: true);
+        }
+
         return requestResult.skipRequest!.result;
       }
+
+      final Stopwatch? stopwatch =
+          _emitRequestLogs ? (Stopwatch()..start()) : null;
+
       final Map<String, dynamic>? result =
           await getCorrectRestRequest(requestResult);
-      stopwatch.stop();
 
-      generateLog(generateMsg(
-        restRequest: requestResult,
-        stopwatch: stopwatch,
-      ));
+      stopwatch?.stop();
+
+      if (stopwatch != null) {
+        generateLog(
+          generateMsg(
+            restRequest: requestResult,
+            stopwatch: stopwatch,
+          ),
+          latencyMs: stopwatch.elapsedMilliseconds,
+        );
+      }
 
       if (result?['error'] != null) {
         return Left(getRestFailure(result!['error'], requestResult.failures));
@@ -215,7 +241,10 @@ class ManagerAPI with ManagerToken {
       requestResult = requestResult.copyWith(cancelToken: cancelToken);
     }
     if (requestResult.skipRequest != null) {
-      generateLog("REQUEST SKIPPED: ${requestResult.name}", isAlert: true);
+      if (_emitRequestLogs) {
+        generateLog("REQUEST SKIPPED: ${requestResult.name}", isAlert: true);
+      }
+
       return requestResult.skipRequest!.result;
     }
 
@@ -231,55 +260,96 @@ class ManagerAPI with ManagerToken {
     int? ignoreCode,
     void Function(Map<String, dynamic>? rawResult)? onGraphQLRawResult,
   }) async {
-    final Stopwatch stopwatch = Stopwatch()..start();
-
     if (ignoreCode != null) {
       requestResult = requestResult.copyWith(errorPolicy: ErrorPolicy.all);
     }
 
-    final GraphQLQueryResult<Object?> result =
-        await getCorrectGraphQLRequest(requestResult);
-    onGraphQLRawResult?.call(result.data as Map<String, dynamic>?);
-    stopwatch.stop();
+    final bool emitLogs = _emitRequestLogs;
+    final Stopwatch? stopwatch = emitLogs ? (Stopwatch()..start()) : null;
+    final String? blockKey =
+        emitLogs ? _RequestLogFormatting.graphqlBlockKey(requestResult.name) : null;
 
-    final String? exceptionCode = getException(result.exception?.graphqlErrors);
-    if (exceptionCode == "cancelled") {
-      generateLog(
-        "${generateMsg(requestResult: requestResult, stopwatch: stopwatch)} - [CANCELLED]",
-        isCanceled: true,
-      );
-      return Left(DefaultAPIFailures.getFailureByCode(
-          DefaultAPIFailures.cancelErrorCode)!);
+    if (blockKey != null) {
+      _graphqlBlockBegin(blockKey);
     }
 
-    generateLog(generateMsg(
-      requestResult: requestResult,
-      stopwatch: stopwatch,
-    ));
+    try {
+      final GraphQLQueryResult<Object?> result =
+          await getCorrectGraphQLRequest(requestResult);
+      onGraphQLRawResult?.call(result.data as Map<String, dynamic>?);
+      stopwatch?.stop();
 
-    if (result.hasException && ignoreCode == null) {
-      return Left(getGraphQLFailure(result.exception, requestResult.failures));
-    }
+      final String? exceptionCode =
+          getException(result.exception?.graphqlErrors);
 
-    if (result.hasException && ignoreCode != null && result.data == null) {
-      return Left(getGraphQLFailure(result.exception, requestResult.failures));
-    }
+      if (exceptionCode == "cancelled") {
+        if (blockKey != null) {
+          _graphqlBlockAppend(
+            blockKey: blockKey,
+            body:
+                "${generateMsg(requestResult: requestResult, stopwatch: stopwatch)} - [CANCELLED]",
+            isCanceled: true,
+          );
+        }
 
-    if (result.hasException && ignoreCode != null && result.data != null) {
-      if (exceptionCode == ignoreCode.toString()) {
+        return Left(DefaultAPIFailures.getFailureByCode(
+            DefaultAPIFailures.cancelErrorCode)!);
+      }
+
+      if (blockKey != null) {
+        _graphqlBlockAppend(
+          blockKey: blockKey,
+          body: generateMsg(
+            requestResult: requestResult,
+            stopwatch: stopwatch,
+          ),
+          latencyMs: stopwatch?.elapsedMilliseconds,
+        );
+      }
+
+      if (result.hasException && ignoreCode == null) {
+        return Left(getGraphQLFailure(result.exception, requestResult.failures));
+      }
+
+      if (result.hasException && ignoreCode != null && result.data == null) {
+        return Left(getGraphQLFailure(result.exception, requestResult.failures));
+      }
+
+      if (result.hasException && ignoreCode != null && result.data != null) {
+        if (exceptionCode == ignoreCode.toString()) {
+          final dynamic returned = await requestResult
+              .returnRequest(result.data! as Map<String, dynamic>);
+          return Right(returned);
+        }
+      }
+
+      if (result.data != null && !result.hasException) {
         final dynamic returned = await requestResult
             .returnRequest(result.data! as Map<String, dynamic>);
         return Right(returned);
       }
-    }
 
-    if (result.data != null && !result.hasException) {
-      final dynamic returned = await requestResult
-          .returnRequest(result.data! as Map<String, dynamic>);
-      return Right(returned);
-    }
+      return Left(getGraphQLFailure(result.exception, requestResult.failures));
+    } catch (error) {
+      if (stopwatch?.isRunning ?? false) {
+        stopwatch!.stop();
+      }
 
-    return Left(getGraphQLFailure(result.exception, requestResult.failures));
+      if (blockKey != null) {
+        _graphqlBlockAppend(
+          blockKey: blockKey,
+          body:
+              "${generateRequestLogBase(requestResult: requestResult)} — exceção: $error",
+          isError: true,
+        );
+      }
+
+      rethrow;
+    } finally {
+      if (blockKey != null) {
+        _graphqlBlockRelease(blockKey);
+      }
+    }
   }
 
   Failure getRestFailure(
@@ -353,84 +423,6 @@ class ManagerAPI with ManagerToken {
 
     generateLog("REQUEST TYPE REST NOT FOUND", isError: true);
     return null;
-  }
-
-  String generateMsg({
-    RestRequest? restRequest,
-    GraphQLRequest<dynamic>? requestResult,
-    Stopwatch? stopwatch,
-  }) {
-    final String base = generateRequestLogBase(
-      restRequest: restRequest,
-      requestResult: requestResult,
-    );
-    final int elapsedMs = stopwatch?.elapsedMilliseconds ?? 0;
-
-    return "$base - ${elapsedMs}ms";
-  }
-
-  String generateRequestLogBase({
-    RestRequest? restRequest,
-    GraphQLRequest<dynamic>? requestResult,
-  }) {
-    final String type = requestResult?.type.toString().split(".").last ??
-        restRequest?.type.toString().split(".").last ??
-        "".toUpperCase();
-
-    final String name = requestResult?.name ?? restRequest?.name ?? "";
-    final Map<String, dynamic> variables =
-        requestResult?.variables ?? restRequest?.body ?? <String, dynamic>{};
-    final String path = requestResult?.path.toUpperCase() ?? "";
-
-    return "[$path] [$type $name] - $variables";
-  }
-
-  Color _getLogTitleColor({
-    required bool isError,
-    required bool isAlert,
-    required bool isCanceled,
-  }) {
-    if (isAlert) return Colors.yellowAccent;
-    if (isError) return Colors.redAccent;
-    if (isCanceled) return Colors.white70;
-    return Colors.amber;
-  }
-
-  void generateLog(
-    String body, {
-    bool isError = false,
-    bool isAlert = false,
-    bool isCanceled = false,
-  }) {
-    if (!kDebugMode) return;
-
-    final bool isLoggingEnabled = const bool.fromEnvironment(
-      "REQUESTLOGGER",
-      defaultValue: true,
-    );
-    if (!isLoggingEnabled) return;
-
-    if (!kIsWeb) {
-      if (Platform.isIOS) {
-        return debugPrint("GraphQL: $body");
-      }
-    }
-
-    LogPrint(
-      body,
-      type: LogPrintType.custom,
-      title: "Graphql",
-      titleBackgroundColor: _getLogTitleColor(
-        isError: isError,
-        isAlert: isAlert,
-        isCanceled: isCanceled,
-      ),
-      messageColor: _getLogTitleColor(
-        isError: isError,
-        isAlert: isAlert,
-        isCanceled: isCanceled,
-      ),
-    );
   }
 
   @override
