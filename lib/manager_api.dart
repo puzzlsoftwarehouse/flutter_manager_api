@@ -27,6 +27,14 @@ export 'package:manager_api/utils/validate_fragments.dart';
 
 DefaultFailures managerDefaultAPIFailures = DefaultFailures();
 
+typedef _GraphqlBlockLineEntry = ({
+  String body,
+  bool isError,
+  bool isAlert,
+  bool isCanceled,
+  int? latencyMs,
+});
+
 mixin class ManagerToken {
   String? token;
   Map<String, String>? headerCustom;
@@ -43,6 +51,13 @@ class ManagerAPI with ManagerToken {
 
   final List<Failure> _failures;
   Map<String, String>? Function(String? token)? headers;
+
+  final Map<String, int> _graphqlBlockInflight = <String, int>{};
+
+  final Map<String, Stopwatch> _graphqlBlockWallClock = <String, Stopwatch>{};
+
+  final Map<String, List<_GraphqlBlockLineEntry>> _graphqlBlockPendingLines =
+      <String, List<_GraphqlBlockLineEntry>>{};
 
   ManagerAPI({
     required DefaultFailures defaultFailures,
@@ -199,10 +214,13 @@ class ManagerAPI with ManagerToken {
           await getCorrectRestRequest(requestResult);
       stopwatch.stop();
 
-      generateLog(generateMsg(
-        restRequest: requestResult,
-        stopwatch: stopwatch,
-      ));
+      generateLog(
+        generateMsg(
+          restRequest: requestResult,
+          stopwatch: stopwatch,
+        ),
+        latencyMs: stopwatch.elapsedMilliseconds,
+      );
 
       if (result?['error'] != null) {
         return Left(getRestFailure(result!['error'], requestResult.failures));
@@ -237,49 +255,187 @@ class ManagerAPI with ManagerToken {
       requestResult = requestResult.copyWith(errorPolicy: ErrorPolicy.all);
     }
 
-    final GraphQLQueryResult<Object?> result =
-        await getCorrectGraphQLRequest(requestResult);
-    onGraphQLRawResult?.call(result.data as Map<String, dynamic>?);
-    stopwatch.stop();
+    final String blockKey = _graphqlOperationBlockKey(requestResult.name);
 
-    final String? exceptionCode = getException(result.exception?.graphqlErrors);
-    if (exceptionCode == "cancelled") {
-      generateLog(
-        "${generateMsg(requestResult: requestResult, stopwatch: stopwatch)} - [CANCELLED]",
-        isCanceled: true,
+    _graphqlBlockBegin(blockKey);
+
+    try {
+      final GraphQLQueryResult<Object?> result =
+          await getCorrectGraphQLRequest(requestResult);
+      onGraphQLRawResult?.call(result.data as Map<String, dynamic>?);
+      stopwatch.stop();
+
+      final String? exceptionCode =
+          getException(result.exception?.graphqlErrors);
+
+      if (exceptionCode == "cancelled") {
+        _graphqlBlockAppend(
+          blockKey: blockKey,
+          body:
+              "${generateMsg(requestResult: requestResult, stopwatch: stopwatch)} - [CANCELLED]",
+          isCanceled: true,
+        );
+
+        return Left(DefaultAPIFailures.getFailureByCode(
+            DefaultAPIFailures.cancelErrorCode)!);
+      }
+
+      _graphqlBlockAppend(
+        blockKey: blockKey,
+        body: generateMsg(
+          requestResult: requestResult,
+          stopwatch: stopwatch,
+        ),
+        latencyMs: stopwatch.elapsedMilliseconds,
       );
-      return Left(DefaultAPIFailures.getFailureByCode(
-          DefaultAPIFailures.cancelErrorCode)!);
-    }
 
-    generateLog(generateMsg(
-      requestResult: requestResult,
-      stopwatch: stopwatch,
-    ));
+      if (result.hasException && ignoreCode == null) {
+        return Left(getGraphQLFailure(result.exception, requestResult.failures));
+      }
 
-    if (result.hasException && ignoreCode == null) {
-      return Left(getGraphQLFailure(result.exception, requestResult.failures));
-    }
+      if (result.hasException && ignoreCode != null && result.data == null) {
+        return Left(getGraphQLFailure(result.exception, requestResult.failures));
+      }
 
-    if (result.hasException && ignoreCode != null && result.data == null) {
-      return Left(getGraphQLFailure(result.exception, requestResult.failures));
-    }
+      if (result.hasException && ignoreCode != null && result.data != null) {
+        if (exceptionCode == ignoreCode.toString()) {
+          final dynamic returned = await requestResult
+              .returnRequest(result.data! as Map<String, dynamic>);
+          return Right(returned);
+        }
+      }
 
-    if (result.hasException && ignoreCode != null && result.data != null) {
-      if (exceptionCode == ignoreCode.toString()) {
+      if (result.data != null && !result.hasException) {
         final dynamic returned = await requestResult
             .returnRequest(result.data! as Map<String, dynamic>);
         return Right(returned);
       }
+
+      return Left(getGraphQLFailure(result.exception, requestResult.failures));
+    } catch (error) {
+      if (stopwatch.isRunning) {
+        stopwatch.stop();
+      }
+
+      _graphqlBlockAppend(
+        blockKey: blockKey,
+        body:
+            "${generateRequestLogBase(requestResult: requestResult)} — exceção: $error",
+        isError: true,
+      );
+
+      rethrow;
+    } finally {
+      _graphqlBlockRelease(blockKey);
+    }
+  }
+
+  String _graphqlOperationBlockKey(String operationName) {
+    final int underscoreIndex = operationName.indexOf('_');
+
+    if (underscoreIndex <= 0) {
+      return operationName;
     }
 
-    if (result.data != null && !result.hasException) {
-      final dynamic returned = await requestResult
-          .returnRequest(result.data! as Map<String, dynamic>);
-      return Right(returned);
+    return operationName.substring(0, underscoreIndex);
+  }
+
+  void _graphqlBlockBegin(String blockKey) {
+    final int nextCount = (_graphqlBlockInflight[blockKey] ?? 0) + 1;
+
+    _graphqlBlockInflight[blockKey] = nextCount;
+
+    if (nextCount == 1) {
+      _graphqlBlockWallClock[blockKey] = Stopwatch()..start();
+    }
+  }
+
+  void _graphqlBlockAppend({
+    required String blockKey,
+    required String body,
+    bool isError = false,
+    bool isAlert = false,
+    bool isCanceled = false,
+    int? latencyMs,
+  }) {
+    final List<_GraphqlBlockLineEntry> bucket = _graphqlBlockPendingLines
+        .putIfAbsent(blockKey, () => <_GraphqlBlockLineEntry>[]);
+
+    bucket.add((
+      body: body,
+      isError: isError,
+      isAlert: isAlert,
+      isCanceled: isCanceled,
+      latencyMs: latencyMs,
+    ));
+  }
+
+  void _graphqlBlockRelease(String blockKey) {
+    final int current = _graphqlBlockInflight[blockKey] ?? 0;
+    final int next = current - 1;
+
+    if (next <= 0) {
+      _graphqlBlockInflight.remove(blockKey);
+
+      final Stopwatch? wall = _graphqlBlockWallClock.remove(blockKey);
+
+      wall?.stop();
+
+      final int wallMs = wall?.elapsedMilliseconds ?? 0;
+
+      final List<_GraphqlBlockLineEntry> lines =
+          _graphqlBlockPendingLines.remove(blockKey) ?? <_GraphqlBlockLineEntry>[];
+
+      _flushGraphqlBlock(
+        blockKey: blockKey,
+        lines: lines,
+        wallMs: wallMs,
+      );
+    } else {
+      _graphqlBlockInflight[blockKey] = next;
+    }
+  }
+
+  void _flushGraphqlBlock({
+    required String blockKey,
+    required List<_GraphqlBlockLineEntry> lines,
+    required int wallMs,
+  }) {
+    if (lines.isEmpty) {
+      return;
     }
 
-    return Left(getGraphQLFailure(result.exception, requestResult.failures));
+    if (!kDebugMode) {
+      return;
+    }
+
+    final bool isLoggingEnabled = const bool.fromEnvironment(
+      "REQUESTLOGGER",
+      defaultValue: true,
+    );
+
+    if (!isLoggingEnabled) {
+      return;
+    }
+
+    generateLog('------------------', neutralStyle: true);
+
+    for (final _GraphqlBlockLineEntry line in lines) {
+      generateLog(
+        line.body,
+        isError: line.isError,
+        isAlert: line.isAlert,
+        isCanceled: line.isCanceled,
+        latencyMs: line.latencyMs,
+      );
+    }
+
+    generateLog(
+      '[$blockKey] total do bloco: ${_formatElapsedForLog(wallMs)}',
+      latencyMs: wallMs,
+    );
+
+    generateLog('------------------', neutralStyle: true);
   }
 
   Failure getRestFailure(
@@ -355,6 +511,12 @@ class ManagerAPI with ManagerToken {
     return null;
   }
 
+  String _formatElapsedForLog(int elapsedMs) {
+    final String secondsPart = (elapsedMs / 1000).toStringAsFixed(1);
+
+    return '${elapsedMs}ms (${secondsPart}s)';
+  }
+
   String generateMsg({
     RestRequest? restRequest,
     GraphQLRequest<dynamic>? requestResult,
@@ -366,7 +528,7 @@ class ManagerAPI with ManagerToken {
     );
     final int elapsedMs = stopwatch?.elapsedMilliseconds ?? 0;
 
-    return "$base - ${elapsedMs}ms";
+    return "$base - ${_formatElapsedForLog(elapsedMs)}";
   }
 
   String generateRequestLogBase({
@@ -385,6 +547,23 @@ class ManagerAPI with ManagerToken {
     return "[$path] [$type $name] - $variables";
   }
 
+  Color _latencyColorForLog(int elapsedMs) {
+    const Color greenFast = Color(0xFF69F0AE);
+    const Color strongRed = Color(0xFF8B0000);
+
+    if (elapsedMs >= 2000) {
+      return strongRed;
+    }
+
+    final double t = (elapsedMs / 2000).clamp(0.0, 1.0);
+
+    if (t <= 0.5) {
+      return Color.lerp(greenFast, Colors.amber.shade400, t * 2)!;
+    }
+
+    return Color.lerp(Colors.amber.shade700, Colors.red.shade700, (t - 0.5) * 2)!;
+  }
+
   Color _getLogTitleColor({
     required bool isError,
     required bool isAlert,
@@ -396,11 +575,39 @@ class ManagerAPI with ManagerToken {
     return Colors.amber;
   }
 
+  Color _resolveLogAccentColor({
+    required bool isError,
+    required bool isAlert,
+    required bool isCanceled,
+    required bool neutralStyle,
+    required int? latencyMs,
+  }) {
+    if (neutralStyle) {
+      return Colors.blueGrey.shade600;
+    }
+
+    if (isError || isAlert || isCanceled) {
+      return _getLogTitleColor(
+        isError: isError,
+        isAlert: isAlert,
+        isCanceled: isCanceled,
+      );
+    }
+
+    if (latencyMs != null) {
+      return _latencyColorForLog(latencyMs);
+    }
+
+    return Colors.amber;
+  }
+
   void generateLog(
     String body, {
     bool isError = false,
     bool isAlert = false,
     bool isCanceled = false,
+    int? latencyMs,
+    bool neutralStyle = false,
   }) {
     if (!kDebugMode) return;
 
@@ -416,20 +623,20 @@ class ManagerAPI with ManagerToken {
       }
     }
 
+    final Color accentColor = _resolveLogAccentColor(
+      isError: isError,
+      isAlert: isAlert,
+      isCanceled: isCanceled,
+      neutralStyle: neutralStyle,
+      latencyMs: latencyMs,
+    );
+
     LogPrint(
       body,
       type: LogPrintType.custom,
       title: "Graphql",
-      titleBackgroundColor: _getLogTitleColor(
-        isError: isError,
-        isAlert: isAlert,
-        isCanceled: isCanceled,
-      ),
-      messageColor: _getLogTitleColor(
-        isError: isError,
-        isAlert: isAlert,
-        isCanceled: isCanceled,
-      ),
+      titleBackgroundColor: accentColor,
+      messageColor: accentColor,
     );
   }
 

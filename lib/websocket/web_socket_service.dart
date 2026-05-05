@@ -350,8 +350,8 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
       name,
       type: LogPrintType.custom,
       title: "WebSocket $_type",
-      titleBackgroundColor: Colors.greenAccent,
-      messageColor: Colors.green,
+      titleBackgroundColor: Colors.lightBlue.shade700,
+      messageColor: Colors.lightBlueAccent.shade100,
     );
   }
 
