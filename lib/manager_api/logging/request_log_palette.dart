@@ -9,14 +9,14 @@ abstract final class _RequestLogPalette {
     required bool isCanceled,
   }) {
     if (isAlert) return Colors.yellowAccent;
-    if (isError) return Colors.redAccent;
+    if (isError) return const Color(0xFFE57373);
     if (isCanceled) return Colors.white70;
     return Colors.amber;
   }
 
   static Color latency(int elapsedMs) {
     const Color greenFast = Color(0xFF69F0AE);
-    const Color strongRed = Color(0xFF8B0000);
+    const Color strongRed = Color(0xFFD32F2F);
 
     if (elapsedMs >= 2000) {
       return strongRed;
@@ -28,7 +28,7 @@ abstract final class _RequestLogPalette {
       return Color.lerp(greenFast, Colors.amber.shade400, t * 2)!;
     }
 
-    return Color.lerp(Colors.amber.shade700, Colors.red.shade700, (t - 0.5) * 2)!;
+    return Color.lerp(Colors.amber.shade700, Colors.red.shade400, (t - 0.5) * 2)!;
   }
 
   static Color resolveAccent({
