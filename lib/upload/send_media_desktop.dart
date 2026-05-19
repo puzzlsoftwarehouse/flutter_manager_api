@@ -112,7 +112,23 @@ class _NativeSendMediaCoordinator {
       return false;
     }
 
+    if (!_isFilesystemPath(filePath)) {
+      return false;
+    }
+
     return File(filePath).existsSync();
+  }
+
+  bool _isFilesystemPath(String path) {
+    if (path.startsWith('/')) {
+      return true;
+    }
+
+    if (Platform.isWindows && RegExp(r'^[a-zA-Z]:[/\\]').hasMatch(path)) {
+      return true;
+    }
+
+    return false;
   }
 
   void _handleEvent(dynamic event) {
@@ -330,6 +346,11 @@ class _NativeSendMediaWorker {
     final String filePath = request.filePath;
     if (filePath.isEmpty) {
       throw StateError('Arquivo inválido para upload.');
+    }
+
+    final File localFile = File(filePath);
+    if (!await localFile.exists()) {
+      throw StateError('Arquivo não encontrado para upload.');
     }
 
     return MultipartFile.fromFile(filePath, filename: request.fileName);
