@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 
@@ -97,12 +98,37 @@ class _NativeSendMediaCoordinator {
   }
 
   Future<TransferableTypedData?> _readInMemoryFileBytesIfNeeded() async {
-    if (file.path.isEmpty) {
+    if (!_hasLocalFileOnDisk()) {
       final Uint8List fileBytes = await file.readAsBytes();
       return TransferableTypedData.fromList(<Uint8List>[fileBytes]);
     }
 
     return null;
+  }
+
+  bool _hasLocalFileOnDisk() {
+    final String filePath = file.path;
+    if (filePath.isEmpty) {
+      return false;
+    }
+
+    if (!_isFilesystemPath(filePath)) {
+      return false;
+    }
+
+    return File(filePath).existsSync();
+  }
+
+  bool _isFilesystemPath(String path) {
+    if (path.startsWith('/')) {
+      return true;
+    }
+
+    if (Platform.isWindows && RegExp(r'^[a-zA-Z]:[/\\]').hasMatch(path)) {
+      return true;
+    }
+
+    return false;
   }
 
   void _handleEvent(dynamic event) {
@@ -320,6 +346,11 @@ class _NativeSendMediaWorker {
     final String filePath = request.filePath;
     if (filePath.isEmpty) {
       throw StateError('Arquivo inválido para upload.');
+    }
+
+    final File localFile = File(filePath);
+    if (!await localFile.exists()) {
+      throw StateError('Arquivo não encontrado para upload.');
     }
 
     return MultipartFile.fromFile(filePath, filename: request.fileName);

@@ -17,7 +17,19 @@ class WebUploadBlobLoader {
       } catch (_) {}
     }
 
-    return _loadBlobFromBytesFallback(file);
+    if (!_isBrowserResolvablePath(filePath)) {
+      return _loadBlobFromBytes(file);
+    }
+
+    try {
+      return await _loadBlobFromBytes(file);
+    } catch (_) {
+      return await _loadBlobFromPath(filePath);
+    }
+  }
+
+  bool _isBrowserResolvablePath(String path) {
+    return _canLoadBlobFromPath(path);
   }
 
   bool _canLoadBlobFromPath(String path) {
@@ -59,7 +71,7 @@ class WebUploadBlobLoader {
     return blobCompleter.future;
   }
 
-  Future<web.Blob> _loadBlobFromBytesFallback(XFile file) async {
+  Future<web.Blob> _loadBlobFromBytes(XFile file) async {
     final Uint8List fileBytes = await file.readAsBytes();
     return _createBlobFromBytes(fileBytes, file.mimeType);
   }
