@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 
@@ -97,12 +98,21 @@ class _NativeSendMediaCoordinator {
   }
 
   Future<TransferableTypedData?> _readInMemoryFileBytesIfNeeded() async {
-    if (file.path.isEmpty) {
+    if (!_hasLocalFileOnDisk()) {
       final Uint8List fileBytes = await file.readAsBytes();
       return TransferableTypedData.fromList(<Uint8List>[fileBytes]);
     }
 
     return null;
+  }
+
+  bool _hasLocalFileOnDisk() {
+    final String filePath = file.path;
+    if (filePath.isEmpty) {
+      return false;
+    }
+
+    return File(filePath).existsSync();
   }
 
   void _handleEvent(dynamic event) {
