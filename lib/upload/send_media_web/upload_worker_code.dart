@@ -73,7 +73,7 @@ function uploadFile(method, uploadUrl, data, headers, requestId) {
       kind: 'failure',
       requestId: requestId,
       exception_code: 'noConnection',
-      detail: 'The XMLHttpRequest onError callback was called. This usually indicates a network or CORS failure.'
+      detail: 'No internet connection or network failure'
     }));
   };
 
@@ -83,7 +83,7 @@ function uploadFile(method, uploadUrl, data, headers, requestId) {
       kind: 'failure',
       requestId: requestId,
       exception_code: 'timeout',
-      detail: 'tempo excedido'
+      detail: 'The connection has timed out. Try again'
     }));
   };
 
@@ -93,7 +93,7 @@ function uploadFile(method, uploadUrl, data, headers, requestId) {
       kind: 'failure',
       requestId: requestId,
       exception_code: 'cancel',
-      detail: 'canceled by user'
+      detail: 'Request canceled'
     }));
   };
 
@@ -106,10 +106,10 @@ function uploadFile(method, uploadUrl, data, headers, requestId) {
 
 function parseFailurePayload(xhr, requestId) {
   var statusCode = String(xhr.status);
-  var detail = xhr.statusText || 'Request failed';
+  var detail = xhr.statusText || 'Upload failed';
 
   if (xhr.status === 413) {
-    detail = 'This file is larger than the server upload limit.';
+    detail = 'This file is larger than the server upload limit';
   }
 
   if (xhr.responseText) {

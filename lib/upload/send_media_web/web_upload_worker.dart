@@ -30,7 +30,7 @@ class WebUploadWorker {
     if (_worker == null) {
       return _failureMap(
         code: '000',
-        message: 'Web Worker não suportado neste ambiente.',
+        message: 'Web Worker is not supported in this environment',
       );
     }
 
@@ -86,7 +86,10 @@ class WebUploadWorker {
           });
           return;
         }
-        finish(_failureMap(code: '000', message: 'Invalid upload response'));
+        finish(_failureMap(
+          code: '000',
+          message: 'Invalid upload response',
+        ));
         return;
       }
 
@@ -94,7 +97,7 @@ class WebUploadWorker {
         finish(
           _failureMap(
             code: payload['exception_code']?.toString() ?? '000',
-            message: payload['detail']?.toString() ?? 'Request failed',
+            message: payload['detail']?.toString() ?? 'Upload failed',
           ),
         );
       }
@@ -111,7 +114,7 @@ class WebUploadWorker {
         finish(
           _failureMap(
             code: 'noConnection',
-            message: 'Falha ao executar o worker de upload.',
+            message: 'Failed to run upload worker',
           ),
         );
       }).toJS,

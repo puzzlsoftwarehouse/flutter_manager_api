@@ -13,7 +13,7 @@ class Failure {
     this.error,
   })  : _log = log ?? '[$code] $message',
         title = title ?? 'Error!',
-        message = message ?? "Unknown error, contact our support";
+        message = message ?? 'Unknown error. Try again or contact support';
 
   String get log => _log ?? message;
 
