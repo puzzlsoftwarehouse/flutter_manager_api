@@ -7,12 +7,11 @@ class DefaultFailures {
   final String cancelError;
 
   DefaultFailures({
-    this.unknownError = "Unknown error, contact our support",
-    this.noConnectionError = "No Internet access!",
-    this.timeoutError = "The connection has timed out!",
-    this.notFoundError = "What you are looking for was not found",
-    this.serverError =
-        "Sorry, we had problems connecting to servers, try again",
-    this.cancelError = "Request canceled",
+    this.unknownError = 'Unknown error. Try again or contact support',
+    this.noConnectionError = 'No internet connection',
+    this.timeoutError = 'The connection has timed out. Try again',
+    this.notFoundError = 'What you are looking for was not found',
+    this.serverError = 'Could not reach the server. Try again',
+    this.cancelError = 'Request canceled',
   });
 }

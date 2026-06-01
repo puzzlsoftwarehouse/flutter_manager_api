@@ -54,7 +54,7 @@ class WebUploadBlobLoader {
       final JSAny? response = request.response;
       if (response == null) {
         blobCompleter.completeError(
-          StateError('Resposta do arquivo inválida para upload.'),
+          StateError('Invalid file response for upload'),
         );
         return;
       }
@@ -63,7 +63,7 @@ class WebUploadBlobLoader {
 
     request.onError.first.then((_) {
       blobCompleter.completeError(
-        StateError('Não foi possível carregar o arquivo para upload.'),
+        StateError('Could not load file for upload'),
       );
     });
 

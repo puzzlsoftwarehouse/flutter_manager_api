@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:cross_file/cross_file.dart';
 import 'package:dio/dio.dart';
 import 'package:manager_api/default_api_failures.dart';
+import 'package:manager_api/utils/failure_message_resolver.dart';
 import 'package:rxdart/subjects.dart';
 
 class SendMedia {
@@ -89,7 +90,7 @@ class _NativeSendMediaCoordinator {
       _completeResult(
         _failureMap(
           code: DefaultAPIFailures.cancelErrorCode,
-          message: 'canceled by user',
+          message: 'Request canceled',
         ),
       );
     });
@@ -158,7 +159,8 @@ class _NativeSendMediaCoordinator {
 
     if (type == 'error') {
       final String code = (event['code'] as String?) ?? '000';
-      final String message = (event['message'] as String?) ?? 'Unknown error';
+      final String message =
+          (event['message'] as String?) ?? 'Unexpected upload error';
       _completeResult(_failureMap(code: code, message: message));
     }
   }
@@ -302,21 +304,24 @@ class _NativeSendMediaWorker {
       if (exception.type == DioExceptionType.cancel) {
         return _failureMap(
           code: DefaultAPIFailures.cancelErrorCode,
-          message: 'canceled by user',
+          message: 'Request canceled',
         );
       }
 
       if (exception.type == DioExceptionType.connectionTimeout ||
           exception.type == DioExceptionType.receiveTimeout ||
           exception.type == DioExceptionType.sendTimeout) {
-        return _failureMap(code: 'timeout', message: 'tempo excedido');
+        return _failureMap(
+          code: 'timeout',
+          message: 'The connection has timed out. Try again',
+        );
       }
 
       if (exception.type == DioExceptionType.connectionError ||
           exception.type == DioExceptionType.unknown) {
         return _failureMap(
           code: 'noConnection',
-          message: 'no Internet connection',
+          message: 'No internet connection',
         );
       }
 
@@ -327,10 +332,16 @@ class _NativeSendMediaWorker {
 
       return _failureMap(
         code: '000',
-        message: exception.message ?? 'Unknown server error',
+        message: FailureMessageResolver.resolveUserMessage(
+          fallback: 'Unexpected upload error',
+          technicalLog: exception.message,
+        ),
       );
     } catch (exception) {
-      return _failureMap(code: '000', message: exception.toString());
+      return _failureMap(
+        code: '000',
+        message: FailureMessageResolver.summarize(exception.toString()),
+      );
     } finally {
       uploadClient.close(force: true);
     }
@@ -345,12 +356,12 @@ class _NativeSendMediaWorker {
 
     final String filePath = request.filePath;
     if (filePath.isEmpty) {
-      throw StateError('Arquivo inválido para upload.');
+      throw StateError('Invalid file for upload.');
     }
 
     final File localFile = File(filePath);
     if (!await localFile.exists()) {
-      throw StateError('Arquivo não encontrado para upload.');
+      throw StateError('File not found for upload.');
     }
 
     return MultipartFile.fromFile(filePath, filename: request.fileName);
@@ -388,7 +399,8 @@ class _NativeSendMediaWorker {
             errorMap['message']?.toString() ??
             _friendlyUploadFailureMessage(
               statusCode: statusCode,
-              fallbackMessage: response.statusMessage ?? 'Unknown server error',
+              fallbackMessage:
+                  response.statusMessage ?? 'Unexpected server error',
             ),
       );
     }
@@ -400,7 +412,7 @@ class _NativeSendMediaWorker {
         fallbackMessage:
             responseData?.toString() ??
             response.statusMessage ??
-            'Unknown server error',
+            'Unexpected server error',
       ),
     );
   }
@@ -420,9 +432,13 @@ class _NativeSendMediaWorker {
     required String fallbackMessage,
   }) {
     if (statusCode == 413) {
-      return 'This file is larger than the server upload limit.';
+      return 'This file is larger than the server upload limit';
     }
-    return fallbackMessage;
+
+    return FailureMessageResolver.resolveUserMessage(
+      fallback: fallbackMessage,
+      serverDetail: fallbackMessage,
+    );
   }
 }
 

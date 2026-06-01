@@ -3,6 +3,7 @@ import 'package:cross_file/cross_file.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:manager_api/default_api_failures.dart';
+import 'package:manager_api/utils/failure_message_resolver.dart';
 import 'package:manager_api/upload/send_media_desktop.dart'
     if (dart.library.html) 'package:manager_api/upload/send_media_web.dart';
 import 'package:rxdart/rxdart.dart';
@@ -168,20 +169,22 @@ class RestHelper {
           return {
             'error': {
               'type': 'timeout',
-              'message': 'tempo excedido',
+              'message': 'The connection has timed out. Try again',
             }
           };
         case DioExceptionType.cancel:
           return {
             'error': {
+              'type': 'cancel',
               'code': DefaultAPIFailures.cancelErrorCode,
-              'message': 'canceled by user',
+              'message': 'Request canceled',
             }
           };
         case DioExceptionType.connectionError || DioExceptionType.unknown:
           return {
             'error': {
-              'message': 'no Internet connection',
+              'type': 'noConnection',
+              'message': 'No internet connection',
             }
           };
         default:
@@ -191,18 +194,28 @@ class RestHelper {
           debugPrint(e.response?.data.toString());
 
           if (e.response?.data.runtimeType == String) {
-            exceptionCode = "000";
-            errorMessage = e.response?.data;
-          } else {
-            exceptionCode = e.response?.data?['exception_code'].toString();
-            errorMessage = e.response?.data?['detail'];
+            exceptionCode = '000';
+            errorMessage = e.response?.data?.toString();
+          } else if (e.response?.data is Map) {
+            final Map<String, dynamic> responseData =
+                Map<String, dynamic>.from(e.response!.data as Map);
+            exceptionCode = responseData['exception_code']?.toString();
+            errorMessage = responseData['detail']?.toString() ??
+                responseData['message']?.toString();
           }
 
+          final String resolvedMessage =
+              FailureMessageResolver.resolveUserMessage(
+            fallback: e.response?.statusMessage ?? 'Server error',
+            serverDetail: errorMessage,
+            technicalLog: e.message,
+          );
+
           return _errorServer(
-            code:
-                (exceptionCode?.toString() ?? (e.response?.statusCode ?? "000"))
-                    .toString(),
-            message: errorMessage ?? e.response?.statusMessage,
+            code: (exceptionCode?.toString() ??
+                    (e.response?.statusCode ?? '000').toString())
+                .toString(),
+            message: resolvedMessage,
           );
       }
     }

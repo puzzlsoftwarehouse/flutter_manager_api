@@ -17,6 +17,7 @@ import 'package:manager_api/models/graphql/graphql_retry_options.dart';
 import 'package:manager_api/models/resultlr/resultlr.dart';
 import 'package:manager_api/rest/rest_helper.dart';
 import 'package:manager_api/rest/rest_request.dart';
+import 'package:manager_api/utils/failure_message_resolver.dart';
 import 'package:manager_api/utils/graphql_cancel_token.dart';
 
 export 'package:manager_api/models/graphql/graphql_policies.dart'
@@ -70,18 +71,29 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
     );
   }
 
-  Failure getDefaultFailure(String? text) => Failure(
-        code: "000",
-        message: managerDefaultAPIFailures.unknownError,
-        log: text,
-      );
+  Failure getDefaultFailure(
+    String? text, {
+    String? userMessage,
+  }) {
+    final String resolvedMessage = FailureMessageResolver.resolveUserMessage(
+      fallback: managerDefaultAPIFailures.unknownError,
+      serverDetail: userMessage,
+      technicalLog: text,
+    );
+
+    return Failure(
+      code: '000',
+      message: resolvedMessage,
+      log: text,
+      error: text,
+    );
+  }
 
   String? getException(List<GraphQLError>? errors) {
-    if (errors == null || errors.isEmpty) return null;
-    if (errors.first.extensions != null) {
-      return errors.first.extensions?['exception_code'].toString();
-    }
-    return errors.first.message.toString();
+    return FailureMessageResolver.extractGraphQLErrorDetails(errors).code ??
+        (errors != null && errors.isNotEmpty
+            ? errors.first.message.toString()
+            : null);
   }
 
   Failure getGraphQLFailure(
@@ -89,42 +101,80 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
     List<Failure> failures,
   ) {
     final List<Failure> allFailures = [..._failures, ...failures];
+    final GraphQLErrorDetails errorDetails =
+        FailureMessageResolver.extractGraphQLErrorDetails(
+      exception?.graphqlErrors,
+    );
 
     if (exception?.linkException != null) {
-      generateLog("${exception?.linkException.toString()}", isError: true);
+      final String linkLog = exception!.linkException.toString();
+      final String linkMessage =
+          FailureMessageResolver.extractLinkExceptionMessage(
+        exception.linkException?.originalException,
+        fallback: managerDefaultAPIFailures.noConnectionError,
+      );
+
+      generateLog(linkLog, isError: true);
 
       return DefaultAPIFailures.getFailureByCode(
-          DefaultAPIFailures.noConnectionCode)!;
+        DefaultAPIFailures.noConnectionCode,
+      )!
+          .copyWith(
+            message: linkMessage,
+            error: linkLog,
+          );
     }
 
-    String? exceptionCode = getException(exception?.graphqlErrors);
+    final String? exceptionCode =
+        errorDetails.code ?? getException(exception?.graphqlErrors);
 
     if (exceptionCode == DefaultAPIFailures.noConnectionCode) {
       return DefaultAPIFailures.getFailureByCode(
-          DefaultAPIFailures.noConnectionCode)!;
+        DefaultAPIFailures.noConnectionCode,
+      )!
+          .copyWith(
+            error: errorDetails.technicalLog,
+          );
     }
 
     if (exceptionCode == DefaultAPIFailures.timeoutCode) {
-      generateLog("GraphQL Request Timeout", isError: true);
+      generateLog('GraphQL Request Timeout', isError: true);
 
       return DefaultAPIFailures.getFailureByCode(
-          DefaultAPIFailures.timeoutCode)!;
+        DefaultAPIFailures.timeoutCode,
+      )!
+          .copyWith(
+            error: errorDetails.technicalLog,
+          );
     }
 
-    if (exceptionCode == "cancelled") {
+    if (exceptionCode == 'cancelled' ||
+        exceptionCode == DefaultAPIFailures.cancelErrorCode) {
       return DefaultAPIFailures.getFailureByCode(
-          DefaultAPIFailures.cancelErrorCode)!;
+        DefaultAPIFailures.cancelErrorCode,
+      )!
+          .copyWith(
+            error: errorDetails.technicalLog,
+          );
     }
 
-    final Failure? failure = allFailures
-        .firstWhereOrNull((Failure failure) => failure.code == exceptionCode);
-
-    final Failure resultFailure = (failure ?? getDefaultFailure(exceptionCode))
-        .copyWith(
-            error: exception?.graphqlErrors
-                .map((GraphQLError item) => item.toString())
-                .toList()
-                .join('\n'));
+    final Failure? failure = allFailures.firstWhereOrNull(
+      (Failure item) => item.code == exceptionCode,
+    );
+    final Failure baseFailure = failure ??
+        getDefaultFailure(
+          errorDetails.technicalLog ?? exceptionCode,
+          userMessage: errorDetails.userMessage,
+        );
+    final String resolvedMessage = FailureMessageResolver.resolveUserMessage(
+      fallback: baseFailure.message,
+      serverDetail: errorDetails.userMessage,
+      technicalLog: errorDetails.technicalLog,
+    );
+    final Failure resultFailure = baseFailure.copyWith(
+      message: resolvedMessage,
+      error: errorDetails.technicalLog,
+    );
 
     generateLog(resultFailure.error ?? resultFailure.message, isError: true);
     return resultFailure;
@@ -356,33 +406,63 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
     Map<String, dynamic> exception,
     List<Failure> failures,
   ) {
-    generateLog("Rest Request Error: ${exception.toString()}", isError: true);
+    final RestErrorDetails errorDetails =
+        FailureMessageResolver.extractRestErrorDetails(exception);
+
+    generateLog(
+      'Rest Request Error: ${errorDetails.technicalLog ?? exception.toString()}',
+      isError: true,
+    );
 
     final List<Failure> allFailures = [..._failures, ...failures];
 
-    if (exception['type'] == 'noConnection') {
+    if (errorDetails.isNoConnection) {
       return DefaultAPIFailures.getFailureByCode(
-          DefaultAPIFailures.noConnectionCode)!;
+        DefaultAPIFailures.noConnectionCode,
+      )!
+          .copyWith(
+            error: errorDetails.technicalLog,
+          );
     }
 
-    if (exception['type'] == 'timeout') {
+    if (errorDetails.isTimeout) {
       return DefaultAPIFailures.getFailureByCode(
-          DefaultAPIFailures.timeoutCode)!;
+        DefaultAPIFailures.timeoutCode,
+      )!
+          .copyWith(
+            error: errorDetails.technicalLog,
+          );
     }
 
-    String? code;
-
-    if (exception['code'] is int) {
-      code = exception['code'].toString();
-    } else {
-      code = exception['code'];
+    if (errorDetails.isCancel) {
+      return DefaultAPIFailures.getFailureByCode(
+        DefaultAPIFailures.cancelErrorCode,
+      )!
+          .copyWith(
+            error: errorDetails.technicalLog,
+          );
     }
 
-    Failure? failure =
-        allFailures.firstWhereOrNull((Failure failure) => failure.code == code);
+    final String? code = errorDetails.code;
+    final Failure? failure = allFailures.firstWhereOrNull(
+      (Failure item) => item.code == code,
+    );
 
-    return failure ??
-        getDefaultFailure("${code ?? ""}  ${exception['message']}");
+    if (failure != null) {
+      return failure.copyWith(
+        message: FailureMessageResolver.resolveUserMessage(
+          fallback: failure.message,
+          serverDetail: errorDetails.userMessage,
+          technicalLog: errorDetails.technicalLog,
+        ),
+        error: errorDetails.technicalLog,
+      );
+    }
+
+    return getDefaultFailure(
+      '${code ?? ''} ${errorDetails.userMessage ?? ''}'.trim(),
+      userMessage: errorDetails.userMessage,
+    );
   }
 
   RestRequest convertRestRequest(Map<String, dynamic>? request) =>

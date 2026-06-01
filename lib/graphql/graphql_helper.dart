@@ -76,7 +76,7 @@ class GraphQLHelper implements IGraphQLHelper {
         exception: GraphQLOperationException(
           graphqlErrors: [
             GraphQLError(
-                message: 'Invalid response',
+                message: 'Invalid server response',
                 extensions: {'exception_code': '000'}),
           ],
         ),
