@@ -24,7 +24,15 @@ mixin ManagerApiRequestLogging on ManagerToken {
   static const bool requestLoggerFromEnvironment =
       bool.fromEnvironment('REQUESTLOGGER', defaultValue: true);
 
+  static const bool requestLoggerBlocFromEnvironment =
+      bool.fromEnvironment('REQUESTLOGGER_BLOC', defaultValue: false);
+
+  static const bool requestLoggerGroupFromEnvironment =
+      bool.fromEnvironment('REQUESTLOGGER_GROUP', defaultValue: true);
+
   Map<String, int>? _graphqlBlockInflight;
+
+  Set<String>? _graphqlGroupLoggedKeys;
 
   Map<String, Stopwatch>? _graphqlBlockWallClock;
 
@@ -32,6 +40,53 @@ mixin ManagerApiRequestLogging on ManagerToken {
 
   bool get _emitRequestLogs =>
       kDebugMode && ManagerApiRequestLogging.requestLoggerFromEnvironment;
+
+  bool _shouldLogGraphqlGroup(String groupKey) {
+    if (ManagerApiRequestLogging.requestLoggerGroupFromEnvironment) {
+      return true;
+    }
+
+    final Set<String> logged =
+        _graphqlGroupLoggedKeys ??= <String>{};
+
+    if (logged.contains(groupKey)) {
+      return false;
+    }
+
+    logged.add(groupKey);
+
+    return true;
+  }
+
+  void _emitGraphqlRequestLog({
+    required String? blockKey,
+    required String body,
+    bool isError = false,
+    bool isAlert = false,
+    bool isCanceled = false,
+    int? latencyMs,
+  }) {
+    if (blockKey != null) {
+      _graphqlBlockAppend(
+        blockKey: blockKey,
+        body: body,
+        isError: isError,
+        isAlert: isAlert,
+        isCanceled: isCanceled,
+        latencyMs: latencyMs,
+      );
+
+      return;
+    }
+
+    generateLog(
+      body,
+      isError: isError,
+      isAlert: isAlert,
+      isCanceled: isCanceled,
+      latencyMs: latencyMs,
+    );
+  }
 
   void _graphqlBlockBegin(String blockKey) {
     final Map<String, int> inflight =

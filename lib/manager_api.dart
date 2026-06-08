@@ -315,9 +315,16 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
     }
 
     final bool emitLogs = _emitRequestLogs;
-    final Stopwatch? stopwatch = emitLogs ? (Stopwatch()..start()) : null;
+    final String groupKey =
+        _RequestLogFormatting.graphqlBlockKey(requestResult.name);
+    final bool shouldLogRequest =
+        emitLogs && _shouldLogGraphqlGroup(groupKey);
+    final bool useBlock = shouldLogRequest &&
+        ManagerApiRequestLogging.requestLoggerBlocFromEnvironment;
+    final Stopwatch? stopwatch =
+        shouldLogRequest ? (Stopwatch()..start()) : null;
     final String? blockKey =
-        emitLogs ? _RequestLogFormatting.graphqlBlockKey(requestResult.name) : null;
+        useBlock ? groupKey : null;
 
     if (blockKey != null) {
       _graphqlBlockBegin(blockKey);
@@ -333,8 +340,8 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
           getException(result.exception?.graphqlErrors);
 
       if (exceptionCode == "cancelled") {
-        if (blockKey != null) {
-          _graphqlBlockAppend(
+        if (shouldLogRequest) {
+          _emitGraphqlRequestLog(
             blockKey: blockKey,
             body:
                 "${generateMsg(requestResult: requestResult, stopwatch: stopwatch)} - [CANCELLED]",
@@ -346,8 +353,8 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
             DefaultAPIFailures.cancelErrorCode)!);
       }
 
-      if (blockKey != null) {
-        _graphqlBlockAppend(
+      if (shouldLogRequest) {
+        _emitGraphqlRequestLog(
           blockKey: blockKey,
           body: generateMsg(
             requestResult: requestResult,
@@ -385,8 +392,8 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
         stopwatch!.stop();
       }
 
-      if (blockKey != null) {
-        _graphqlBlockAppend(
+      if (shouldLogRequest) {
+        _emitGraphqlRequestLog(
           blockKey: blockKey,
           body:
               "${generateRequestLogBase(requestResult: requestResult)} — exceção: $error",
