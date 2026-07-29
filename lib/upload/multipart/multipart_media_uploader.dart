@@ -50,19 +50,39 @@ class MultipartMediaUploader {
   static const int webMaxConcurrentParts = 4;
   static const int nativeMaxConcurrentParts = 6;
 
-  static const Set<String> _presignExcludedKeys = <String>{
+  static const Duration _apiConnectTimeout = Duration(seconds: 30);
+  static const Duration _apiReceiveTimeout = Duration(minutes: 2);
+  static const Duration _apiSendTimeout = Duration(seconds: 60);
+
+  static const Set<String> _presignKeys = <String>{
+    'company_id',
+    'directory',
+    'content_descriptor_slug',
+    'content_datum_type_slug',
+    'filename',
+    'file_size',
+    'is_public',
+    'mimetype',
+  };
+
+  static const Set<String> _confirmKeys = <String>{
+    'object_key',
+    'upload_id',
+    'company_id',
+    'content_descriptor_slug',
+    'content_datum_type_slug',
+    'filename',
+    'parts',
+    'adapter_slug',
     'blur_hash',
     'duration',
   };
 
-  static const Set<String> _confirmExcludedKeys = <String>{
-    'file_size',
-  };
-
-  static const Set<String> _abortExcludedKeys = <String>{
-    'blur_hash',
-    'duration',
-    'file_size',
+  static const Set<String> _abortKeys = <String>{
+    'object_key',
+    'upload_id',
+    'company_id',
+    'adapter_slug',
   };
 
   static int recommendedConcurrency({
@@ -106,10 +126,10 @@ class MultipartMediaUploader {
     final String mediaBaseUrl = normalizeMediaBaseUrl(request.mediaBaseUrl);
     final Dio apiClient = Dio(
       BaseOptions(
-        connectTimeout: const Duration(minutes: 2),
-        receiveTimeout: const Duration(hours: 2),
-        sendTimeout: kIsWeb ? null : const Duration(hours: 2),
-        headers: UploadHeaders.withoutContentType(request.headers),
+        connectTimeout: _apiConnectTimeout,
+        receiveTimeout: _apiReceiveTimeout,
+        sendTimeout: kIsWeb ? null : _apiSendTimeout,
+        headers: UploadHeaders.forMediaApi(request.headers),
       ),
     );
 
@@ -144,7 +164,7 @@ class MultipartMediaUploader {
         '$mediaBaseUrl/presign-multipart',
         data: _payload(
           request.fields,
-          exclude: _presignExcludedKeys,
+          allowKeys: _presignKeys,
           extra: <String, dynamic>{
             'filename': request.filename,
             'file_size': request.fileSize,
@@ -211,7 +231,7 @@ class MultipartMediaUploader {
         '$mediaBaseUrl/confirm-multipart',
         data: _payload(
           request.fields,
-          exclude: _confirmExcludedKeys,
+          allowKeys: _confirmKeys,
           extra: <String, dynamic>{
             'object_key': objectKey,
             'upload_id': uploadId,
@@ -221,6 +241,10 @@ class MultipartMediaUploader {
           },
         ),
         cancelToken: request.cancelToken,
+        options: Options(
+          sendTimeout: kIsWeb ? null : _apiSendTimeout,
+          receiveTimeout: _apiReceiveTimeout,
+        ),
       );
 
       if (!UploadResult.isSuccessStatus(confirmResponse.statusCode)) {
@@ -411,12 +435,16 @@ class MultipartMediaUploader {
         '$mediaBaseUrl/abort-multipart',
         data: _payload(
           fields,
-          exclude: _abortExcludedKeys,
+          allowKeys: _abortKeys,
           extra: <String, dynamic>{
             'object_key': objectKey,
             'upload_id': uploadId,
             'adapter_slug': adapterSlug,
           },
+        ),
+        options: Options(
+          sendTimeout: kIsWeb ? null : _apiSendTimeout,
+          receiveTimeout: _apiReceiveTimeout,
         ),
       );
     } catch (_) {}
@@ -424,12 +452,14 @@ class MultipartMediaUploader {
 
   static Map<String, dynamic> _payload(
     Map<String, dynamic> fields, {
-    required Set<String> exclude,
+    required Set<String> allowKeys,
     required Map<String, dynamic> extra,
   }) {
-    final Map<String, dynamic> payload = Map<String, dynamic>.from(fields);
-    for (final String key in exclude) {
-      payload.remove(key);
+    final Map<String, dynamic> payload = <String, dynamic>{};
+    for (final MapEntry<String, dynamic> entry in fields.entries) {
+      if (allowKeys.contains(entry.key)) {
+        payload[entry.key] = entry.value;
+      }
     }
     payload.addAll(extra);
     payload.removeWhere((_, Object? value) => value == null);
