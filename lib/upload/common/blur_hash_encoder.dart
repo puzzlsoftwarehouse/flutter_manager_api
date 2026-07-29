@@ -7,6 +7,7 @@ class BlurHashEncoder {
   static const int numCompX = 4;
   static const int numCompY = 3;
   static const int thumbnailSize = 100;
+  static const int maxEncodeBytes = 20 * 1024 * 1024;
 
   static const Set<String> _skipExtensions = <String>{'heic', 'heif'};
   static const Set<String> _imageExtensions = <String>{
@@ -28,6 +29,7 @@ class BlurHashEncoder {
     String? mimetype,
     String? filename,
     String? contentDatumTypeSlug,
+    int? fileSize,
   }) async {
     if (existingBlurHash != null && existingBlurHash.isNotEmpty) {
       return existingBlurHash;
@@ -45,7 +47,15 @@ class BlurHashEncoder {
     }
 
     try {
+      final int resolvedSize = fileSize ?? await file.length();
+      if (resolvedSize <= 0 || resolvedSize > maxEncodeBytes) {
+        return null;
+      }
+
       final Uint8List bytes = await file.readAsBytes();
+      if (bytes.length > maxEncodeBytes) {
+        return null;
+      }
       return await compute(_encodeBytes, bytes);
     } catch (_) {
       return null;

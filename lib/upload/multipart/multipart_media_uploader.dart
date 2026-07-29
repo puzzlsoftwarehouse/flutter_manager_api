@@ -24,6 +24,7 @@ class MultipartMediaUploadRequest {
   final Map<String, dynamic> fields;
   final String filename;
   final int fileSize;
+  final Future<String?>? blurHashFuture;
   final BehaviorSubject<int>? streamProgress;
   final CancelToken? cancelToken;
   final MultipartPartPut putPart;
@@ -35,6 +36,7 @@ class MultipartMediaUploadRequest {
     required this.fields,
     required this.filename,
     required this.fileSize,
+    this.blurHashFuture,
     required this.streamProgress,
     required this.cancelToken,
     required this.putPart,
@@ -136,6 +138,7 @@ class MultipartMediaUploader {
 
     try {
       _throwIfCancelled(request.cancelToken);
+      _setProgress(request, 1);
 
       final Response<dynamic> presignResponse = await apiClient.post<dynamic>(
         '$mediaBaseUrl/presign-multipart',
@@ -180,6 +183,7 @@ class MultipartMediaUploader {
       }
 
       _throwIfCancelled(request.cancelToken);
+      _setProgress(request, 3);
 
       final List<Map<String, dynamic>> completedParts =
           await _uploadPartsInParallel(
@@ -192,6 +196,14 @@ class MultipartMediaUploader {
         (Map<String, dynamic> a, Map<String, dynamic> b) =>
             (a['part_number'] as int).compareTo(b['part_number'] as int),
       );
+
+      _throwIfCancelled(request.cancelToken);
+      _setProgress(request, 98);
+
+      final String? blurHash = await _resolveBlurHash(request);
+      if (blurHash != null && blurHash.isNotEmpty) {
+        request.fields['blur_hash'] = blurHash;
+      }
 
       _throwIfCancelled(request.cancelToken);
 
@@ -216,7 +228,7 @@ class MultipartMediaUploader {
         return result;
       }
 
-      request.streamProgress?.add(100);
+      _setProgress(request, 100);
       succeeded = true;
       result = UploadResult.success(confirmResponse.data);
       return result;
@@ -282,8 +294,8 @@ class MultipartMediaUploader {
         (int total, int value) => total + value,
       );
       final int total = request.fileSize <= 0 ? 1 : request.fileSize;
-      final int progress = ((sent / total) * 100).floor().clamp(0, 99);
-      request.streamProgress?.add(progress);
+      final int progress = (3 + ((sent / total) * 95)).floor().clamp(3, 97);
+      _setProgress(request, progress);
     }
 
     Future<void> worker() async {
@@ -422,6 +434,30 @@ class MultipartMediaUploader {
     payload.addAll(extra);
     payload.removeWhere((_, Object? value) => value == null);
     return payload;
+  }
+
+  static Future<String?> _resolveBlurHash(
+    MultipartMediaUploadRequest request,
+  ) async {
+    final Object? existing = request.fields['blur_hash'];
+    if (existing is String && existing.isNotEmpty) {
+      return existing;
+    }
+
+    final Future<String?>? blurHashFuture = request.blurHashFuture;
+    if (blurHashFuture == null) {
+      return null;
+    }
+
+    try {
+      return await blurHashFuture;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static void _setProgress(MultipartMediaUploadRequest request, int progress) {
+    request.streamProgress?.add(progress.clamp(0, 100));
   }
 
   static void _throwIfCancelled(CancelToken? cancelToken) {

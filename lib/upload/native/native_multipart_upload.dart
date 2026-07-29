@@ -28,26 +28,27 @@ class NativeMultipartUpload {
 
   Future<Map<String, dynamic>> start() async {
     try {
-      final int fileSize = await file.length();
+      streamProgress?.add(1);
+
       final Map<String, dynamic> fields = UploadFields.merge(
         parameters: parameters,
         body: body,
       );
       final String filename = UploadFields.filename(fields, file);
       final String? mimetype = UploadFields.mimetype(fields, file);
-      final String? blurHash = await BlurHashEncoder.resolve(
+      if (mimetype != null && mimetype.isNotEmpty) {
+        fields['mimetype'] = mimetype;
+      }
+
+      final int fileSize = await file.length();
+      final Future<String?> blurHashFuture = BlurHashEncoder.resolve(
         file: file,
         existingBlurHash: UploadFields.blurHash(fields),
         mimetype: mimetype,
         filename: filename,
         contentDatumTypeSlug: UploadFields.contentDatumTypeSlug(fields),
+        fileSize: fileSize,
       );
-      if (blurHash != null) {
-        fields['blur_hash'] = blurHash;
-      }
-      if (mimetype != null && mimetype.isNotEmpty) {
-        fields['mimetype'] = mimetype;
-      }
 
       final NativeFileSource fileSource = NativeFileSource(file);
       final Dio spacesClient = Dio(
@@ -74,6 +75,7 @@ class NativeMultipartUpload {
             fields: fields,
             filename: filename,
             fileSize: fileSize,
+            blurHashFuture: blurHashFuture,
             streamProgress: streamProgress,
             cancelToken: cancelToken,
             maxConcurrentParts: concurrency,

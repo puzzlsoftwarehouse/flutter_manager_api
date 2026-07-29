@@ -32,8 +32,28 @@ class WebMultipartUpload {
   });
 
   Future<Map<String, dynamic>> start() async {
+    streamProgress?.add(1);
+
+    final Map<String, dynamic> fields = UploadFields.merge(
+      parameters: parameters,
+      body: body,
+    );
+    final String filename = UploadFields.filename(fields, file);
+    final String? mimetype = UploadFields.mimetype(fields, file);
+    if (mimetype != null && mimetype.isNotEmpty) {
+      fields['mimetype'] = mimetype;
+    }
+
     const WebUploadBlobLoader blobLoader = WebUploadBlobLoader();
-    final web.Blob fileBlob = await blobLoader.load(file);
+    final Future<web.Blob> blobFuture = blobLoader.load(file);
+    final Future<String?> blurHashFuture = BlurHashEncoder.resolve(
+      file: file,
+      existingBlurHash: UploadFields.blurHash(fields),
+      mimetype: mimetype,
+      filename: filename,
+      contentDatumTypeSlug: UploadFields.contentDatumTypeSlug(fields),
+    );
+    final web.Blob fileBlob = await blobFuture;
     final WebUploadWorker uploadWorker = WebUploadWorker();
     final Set<void Function()> activeCancels = <void Function()>{};
 
@@ -47,26 +67,6 @@ class WebMultipartUpload {
     });
 
     try {
-      final Map<String, dynamic> fields = UploadFields.merge(
-        parameters: parameters,
-        body: body,
-      );
-      final String filename = UploadFields.filename(fields, file);
-      final String? mimetype = UploadFields.mimetype(fields, file);
-      final String? blurHash = await BlurHashEncoder.resolve(
-        file: file,
-        existingBlurHash: UploadFields.blurHash(fields),
-        mimetype: mimetype,
-        filename: filename,
-        contentDatumTypeSlug: UploadFields.contentDatumTypeSlug(fields),
-      );
-      if (blurHash != null) {
-        fields['blur_hash'] = blurHash;
-      }
-      if (mimetype != null && mimetype.isNotEmpty) {
-        fields['mimetype'] = mimetype;
-      }
-
       final int partEstimate =
           (fileBlob.size / (10 * 1024 * 1024)).ceil().clamp(1, 10000);
       final int concurrency = MultipartMediaUploader.recommendedConcurrency(
@@ -81,6 +81,7 @@ class WebMultipartUpload {
           fields: fields,
           filename: filename,
           fileSize: fileBlob.size,
+          blurHashFuture: blurHashFuture,
           streamProgress: streamProgress,
           cancelToken: cancelToken,
           maxConcurrentParts: concurrency,
