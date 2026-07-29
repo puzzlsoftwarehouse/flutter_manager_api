@@ -21,16 +21,9 @@ typedef MultipartPartPut = Future<String> Function({
 class MultipartMediaUploadRequest {
   final String mediaBaseUrl;
   final Map<String, String>? headers;
-  final int companyId;
-  final String directory;
-  final String contentDescriptorSlug;
-  final String contentDatumTypeSlug;
+  final Map<String, dynamic> fields;
   final String filename;
   final int fileSize;
-  final bool isPublic;
-  final String? mimetype;
-  final String? blurHash;
-  final int? duration;
   final BehaviorSubject<int>? streamProgress;
   final CancelToken? cancelToken;
   final MultipartPartPut putPart;
@@ -39,16 +32,9 @@ class MultipartMediaUploadRequest {
   const MultipartMediaUploadRequest({
     required this.mediaBaseUrl,
     required this.headers,
-    required this.companyId,
-    required this.directory,
-    required this.contentDescriptorSlug,
-    required this.contentDatumTypeSlug,
+    required this.fields,
     required this.filename,
     required this.fileSize,
-    required this.isPublic,
-    required this.mimetype,
-    required this.blurHash,
-    required this.duration,
     required this.streamProgress,
     required this.cancelToken,
     required this.putPart,
@@ -61,6 +47,21 @@ class MultipartMediaUploader {
 
   static const int webMaxConcurrentParts = 4;
   static const int nativeMaxConcurrentParts = 6;
+
+  static const Set<String> _presignExcludedKeys = <String>{
+    'blur_hash',
+    'duration',
+  };
+
+  static const Set<String> _confirmExcludedKeys = <String>{
+    'file_size',
+  };
+
+  static const Set<String> _abortExcludedKeys = <String>{
+    'blur_hash',
+    'duration',
+    'file_size',
+  };
 
   static int recommendedConcurrency({
     required int partCount,
@@ -126,9 +127,9 @@ class MultipartMediaUploader {
       await _safeAbort(
         apiClient: apiClient,
         mediaBaseUrl: mediaBaseUrl,
+        fields: request.fields,
         objectKey: currentObjectKey,
         uploadId: currentUploadId,
-        companyId: request.companyId,
         adapterSlug: adapterSlug ?? 'digital_ocean_s3',
       );
     }
@@ -138,17 +139,14 @@ class MultipartMediaUploader {
 
       final Response<dynamic> presignResponse = await apiClient.post<dynamic>(
         '$mediaBaseUrl/presign-multipart',
-        data: <String, dynamic>{
-          'company_id': request.companyId,
-          'directory': request.directory,
-          'content_descriptor_slug': request.contentDescriptorSlug,
-          'content_datum_type_slug': request.contentDatumTypeSlug,
-          'filename': request.filename,
-          'file_size': request.fileSize,
-          'is_public': request.isPublic,
-          if (request.mimetype != null && request.mimetype!.isNotEmpty)
-            'mimetype': request.mimetype,
-        },
+        data: _payload(
+          request.fields,
+          exclude: _presignExcludedKeys,
+          extra: <String, dynamic>{
+            'filename': request.filename,
+            'file_size': request.fileSize,
+          },
+        ),
         cancelToken: request.cancelToken,
       );
 
@@ -199,18 +197,17 @@ class MultipartMediaUploader {
 
       final Response<dynamic> confirmResponse = await apiClient.post<dynamic>(
         '$mediaBaseUrl/confirm-multipart',
-        data: <String, dynamic>{
-          'object_key': objectKey,
-          'upload_id': uploadId,
-          'adapter_slug': adapterSlug,
-          'company_id': request.companyId,
-          'content_descriptor_slug': request.contentDescriptorSlug,
-          'content_datum_type_slug': request.contentDatumTypeSlug,
-          'filename': request.filename,
-          if (request.blurHash != null) 'blur_hash': request.blurHash,
-          if (request.duration != null) 'duration': request.duration,
-          'parts': completedParts,
-        },
+        data: _payload(
+          request.fields,
+          exclude: _confirmExcludedKeys,
+          extra: <String, dynamic>{
+            'object_key': objectKey,
+            'upload_id': uploadId,
+            'adapter_slug': adapterSlug,
+            'filename': request.filename,
+            'parts': completedParts,
+          },
+        ),
         cancelToken: request.cancelToken,
       );
 
@@ -392,22 +389,39 @@ class MultipartMediaUploader {
   static Future<void> _safeAbort({
     required Dio apiClient,
     required String mediaBaseUrl,
+    required Map<String, dynamic> fields,
     required String objectKey,
     required String uploadId,
-    required int companyId,
     required String adapterSlug,
   }) async {
     try {
       await apiClient.post<dynamic>(
         '$mediaBaseUrl/abort-multipart',
-        data: <String, dynamic>{
-          'object_key': objectKey,
-          'upload_id': uploadId,
-          'company_id': companyId,
-          'adapter_slug': adapterSlug,
-        },
+        data: _payload(
+          fields,
+          exclude: _abortExcludedKeys,
+          extra: <String, dynamic>{
+            'object_key': objectKey,
+            'upload_id': uploadId,
+            'adapter_slug': adapterSlug,
+          },
+        ),
       );
     } catch (_) {}
+  }
+
+  static Map<String, dynamic> _payload(
+    Map<String, dynamic> fields, {
+    required Set<String> exclude,
+    required Map<String, dynamic> extra,
+  }) {
+    final Map<String, dynamic> payload = Map<String, dynamic>.from(fields);
+    for (final String key in exclude) {
+      payload.remove(key);
+    }
+    payload.addAll(extra);
+    payload.removeWhere((_, Object? value) => value == null);
+    return payload;
   }
 
   static void _throwIfCancelled(CancelToken? cancelToken) {

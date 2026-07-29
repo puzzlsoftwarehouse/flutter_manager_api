@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:cross_file/cross_file.dart';
 import 'package:dio/dio.dart';
 import 'package:manager_api/upload/common/blur_hash_encoder.dart';
-import 'package:manager_api/upload/common/multipart_upload_args.dart';
+import 'package:manager_api/upload/common/upload_fields.dart';
 import 'package:manager_api/upload/common/upload_map_reader.dart';
 import 'package:manager_api/upload/common/upload_result.dart';
 import 'package:manager_api/upload/multipart/multipart_media_uploader.dart';
@@ -47,18 +47,25 @@ class WebMultipartUpload {
     });
 
     try {
-      final MultipartUploadArgs args = MultipartUploadArgs.resolve(
-        file: file,
+      final Map<String, dynamic> fields = UploadFields.merge(
         parameters: parameters,
         body: body,
       );
+      final String filename = UploadFields.filename(fields, file);
+      final String? mimetype = UploadFields.mimetype(fields, file);
       final String? blurHash = await BlurHashEncoder.resolve(
         file: file,
-        existingBlurHash: args.blurHash,
-        mimetype: args.mimetype,
-        filename: args.filename,
-        contentDatumTypeSlug: args.contentDatumTypeSlug,
+        existingBlurHash: UploadFields.blurHash(fields),
+        mimetype: mimetype,
+        filename: filename,
+        contentDatumTypeSlug: UploadFields.contentDatumTypeSlug(fields),
       );
+      if (blurHash != null) {
+        fields['blur_hash'] = blurHash;
+      }
+      if (mimetype != null && mimetype.isNotEmpty) {
+        fields['mimetype'] = mimetype;
+      }
 
       final int partEstimate =
           (fileBlob.size / (10 * 1024 * 1024)).ceil().clamp(1, 10000);
@@ -71,16 +78,9 @@ class WebMultipartUpload {
         MultipartMediaUploadRequest(
           mediaBaseUrl: url,
           headers: headers,
-          companyId: args.companyId,
-          directory: args.directory,
-          contentDescriptorSlug: args.contentDescriptorSlug,
-          contentDatumTypeSlug: args.contentDatumTypeSlug,
-          filename: args.filename,
+          fields: fields,
+          filename: filename,
           fileSize: fileBlob.size,
-          isPublic: args.isPublic,
-          mimetype: args.mimetype,
-          blurHash: blurHash,
-          duration: args.duration,
           streamProgress: streamProgress,
           cancelToken: cancelToken,
           maxConcurrentParts: concurrency,
