@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:collection/collection.dart';
+import 'package:cross_file/cross_file.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -482,6 +483,22 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
         file: request.body!['file'],
         url: request.url,
         parameters: request.parameters ?? {},
+        headers: getCorrectHeaders(restRequest: request),
+        streamProgress: request.streamProgress,
+        cancelToken: request.cancelToken,
+      );
+    }
+
+    if (request.bodyType == BodyType.multipartPresigned) {
+      final Map<String, dynamic> body =
+          Map<String, dynamic>.from(request.body ?? <String, dynamic>{});
+      final XFile file = body['file'] as XFile;
+      body.remove('file');
+      return await _restAPI.sendMediaMultipart(
+        file: file,
+        url: request.url,
+        parameters: request.parameters ?? <String, dynamic>{},
+        body: body,
         headers: getCorrectHeaders(restRequest: request),
         streamProgress: request.streamProgress,
         cancelToken: request.cancelToken,

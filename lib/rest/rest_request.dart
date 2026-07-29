@@ -4,7 +4,7 @@ import 'package:rxdart/rxdart.dart';
 
 enum RequestRestType { get, post, put, delete }
 
-enum BodyType { json, bytes }
+enum BodyType { json, bytes, multipartPresigned }
 
 enum RequestResponseBodyType { json, bytes }
 
@@ -38,9 +38,10 @@ class RestRequest<ResultLR> extends RequestAPI<ResultLR> {
     this.cancelToken,
     this.timeOutDuration,
   }) : assert(
-          !(bodyType == BodyType.bytes &&
+          !((bodyType == BodyType.bytes ||
+                  bodyType == BodyType.multipartPresigned) &&
               (body == null || !body.containsKey('file'))),
-          'The "body" field must contain the key "file" when the "bodyType" is "BodyType.bytes".',
+          'The "body" field must contain the key "file" when the "bodyType" is "BodyType.bytes" or "BodyType.multipartPresigned".',
         );
 
   factory RestRequest.fromJson(Map<String, dynamic> json) => RestRequest(

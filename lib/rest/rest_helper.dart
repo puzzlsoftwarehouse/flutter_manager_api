@@ -124,21 +124,68 @@ class RestHelper {
         streamProgress: streamProgress,
         cancelToken: cancelToken,
       );
-      if (result['data'] != null) {
-        return result;
-      }
-
-      int? exceptionCode = int.tryParse(result['exception_code'].toString());
-
-      String? errorMessage = (result['detail'] is String)
-          ? result['detail']
-          : result['detail'].toString();
-
-      return _errorServer(
-        code: (exceptionCode ?? "000").toString(),
-        message: errorMessage,
-      );
+      return _mapUploadResult(result);
     });
+  }
+
+  Future<Map<String, dynamic>> getPlatformRequestSendMediaMultipart({
+    required XFile file,
+    required String url,
+    Map<String, dynamic> parameters = const {},
+    Map<String, dynamic> body = const {},
+    Map<String, String>? headers,
+    BehaviorSubject<int>? streamProgress,
+    CancelToken? cancelToken,
+  }) async {
+    return await SendMedia.sendMediaMultipart(
+      file: file,
+      url: url,
+      parameters: parameters,
+      body: body,
+      headers: headers,
+      streamProgress: streamProgress,
+      cancelToken: cancelToken,
+    );
+  }
+
+  Future<Map<String, dynamic>> sendMediaMultipart({
+    required XFile file,
+    required String url,
+    Map<String, dynamic> parameters = const {},
+    Map<String, dynamic> body = const {},
+    Map<String, String>? headers,
+    BehaviorSubject<int>? streamProgress,
+    CancelToken? cancelToken,
+  }) async {
+    return await tryRequest(() async {
+      final Map<String, dynamic> result =
+          await getPlatformRequestSendMediaMultipart(
+        file: file,
+        url: url,
+        parameters: parameters,
+        body: body,
+        headers: headers,
+        streamProgress: streamProgress,
+        cancelToken: cancelToken,
+      );
+      return _mapUploadResult(result);
+    });
+  }
+
+  Map<String, dynamic> _mapUploadResult(Map<String, dynamic> result) {
+    if (result['data'] != null) {
+      return result;
+    }
+
+    final String code = result['exception_code']?.toString() ?? '000';
+    final String? errorMessage = (result['detail'] is String)
+        ? result['detail'] as String
+        : result['detail']?.toString();
+
+    return _errorServer(
+      code: code,
+      message: errorMessage,
+    );
   }
 
   Map<String, dynamic> _successData(Response response) {
