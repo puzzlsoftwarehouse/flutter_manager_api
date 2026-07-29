@@ -17,9 +17,84 @@ self.addEventListener('message', function (event) {
   var uploadUrl = event.data.uploadUrl;
   var data = event.data.data;
   var headers = event.data.headers;
-  var xhr = uploadFile(method, uploadUrl, data, headers, requestId);
+  var mode = event.data.mode || 'form';
+  var xhr = mode === 'raw_put'
+    ? uploadRawPut(method, uploadUrl, data, headers, requestId)
+    : uploadFile(method, uploadUrl, data, headers, requestId);
   activeRequests[requestId] = xhr;
 });
+
+function uploadRawPut(method, uploadUrl, data, headers, requestId) {
+  var xhr = new XMLHttpRequest();
+  var blob = data && data.blob ? data.blob : null;
+
+  xhr.upload.addEventListener('progress', function (event) {
+    if (event.lengthComputable) {
+      var uploadPercent = Math.floor((event.loaded / event.total) * 100);
+      postMessage(JSON.stringify({
+        kind: 'progress',
+        requestId: requestId,
+        value: uploadPercent,
+        loaded: event.loaded,
+        total: event.total
+      }));
+    }
+  }, false);
+
+  xhr.onload = function () {
+    delete activeRequests[requestId];
+
+    if (xhr.status >= 200 && xhr.status < 300) {
+      var etag = xhr.getResponseHeader('ETag') || xhr.getResponseHeader('etag') || '';
+      postMessage(JSON.stringify({
+        kind: 'complete',
+        requestId: requestId,
+        data: {
+          etag: etag
+        }
+      }));
+      return;
+    }
+
+    postMessage(JSON.stringify(parseFailurePayload(xhr, requestId)));
+  };
+
+  xhr.onerror = function () {
+    delete activeRequests[requestId];
+    postMessage(JSON.stringify({
+      kind: 'failure',
+      requestId: requestId,
+      exception_code: 'noConnection',
+      detail: 'No internet connection or network failure'
+    }));
+  };
+
+  xhr.ontimeout = function () {
+    delete activeRequests[requestId];
+    postMessage(JSON.stringify({
+      kind: 'failure',
+      requestId: requestId,
+      exception_code: 'timeout',
+      detail: 'The connection has timed out. Try again'
+    }));
+  };
+
+  xhr.onabort = function () {
+    delete activeRequests[requestId];
+    postMessage(JSON.stringify({
+      kind: 'failure',
+      requestId: requestId,
+      exception_code: 'cancel',
+      detail: 'Request canceled'
+    }));
+  };
+
+  xhr.open(method || 'PUT', uploadUrl, true);
+  xhr.timeout = 7200000;
+  setHeaders(xhr, headers);
+  xhr.send(blob);
+  return xhr;
+}
 
 function uploadFile(method, uploadUrl, data, headers, requestId) {
   var xhr = new XMLHttpRequest();
@@ -98,7 +173,7 @@ function uploadFile(method, uploadUrl, data, headers, requestId) {
   };
 
   xhr.open(method, uploadUrl, true);
-  xhr.timeout = 1800000;
+  xhr.timeout = 7200000;
   setHeaders(xhr, headers);
   xhr.send(formData);
   return xhr;
