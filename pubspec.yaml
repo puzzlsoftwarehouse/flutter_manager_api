@@ -19,7 +19,7 @@ dependencies:
   web: ^1.1.1
   rxdart: ^0.28.0
   blurhash_dart: ^1.2.1
-  image: ^4.9.1
+  image: ^4.8.0
 
 dev_dependencies:
   flutter_test:
