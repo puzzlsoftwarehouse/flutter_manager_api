@@ -9,12 +9,14 @@ class RequestAPI<ResultLR> {
   final ReturnRequest returnRequest;
   final List<Failure> failures;
   final SkipRequest? skipRequest;
+  final bool requiresToken;
 
   RequestAPI({
     required this.name,
     required this.returnRequest,
     List<Failure> failures = const <Failure>[],
     this.skipRequest,
+    this.requiresToken = true,
   }) : failures = DefaultAPIFailures.failures..addAll(failures);
 
   Map<String, dynamic> get toJson => {};

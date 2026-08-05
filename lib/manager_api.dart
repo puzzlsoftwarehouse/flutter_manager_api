@@ -197,7 +197,10 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
     if (request.type == RequestGraphQLType.mutation) {
       return await _api.mutation(
         data: query,
-        token: request.token ?? token,
+        token: _resolveRequestToken(
+          requiresToken: request.requiresToken,
+          requestToken: request.token,
+        ),
         headers: getCorrectHeaders(request: request),
         variables: request.variables,
         durationTimeOut: request.timeOutDuration ?? timeOutDuration,
@@ -213,7 +216,10 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
 
     return await _api.query(
       data: query,
-      token: request.token ?? token,
+      token: _resolveRequestToken(
+        requiresToken: request.requiresToken,
+        requestToken: request.token,
+      ),
       headers: getCorrectHeaders(request: request),
       variables: request.variables,
       durationTimeOut: request.timeOutDuration ?? timeOutDuration,
@@ -227,6 +233,16 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
     );
   }
 
+  String? _resolveRequestToken({
+    required bool requiresToken,
+    String? requestToken,
+  }) {
+    if (!requiresToken) {
+      return null;
+    }
+    return requestToken ?? token;
+  }
+
   Map<String, String> getCorrectHeaders({
     GraphQLRequest<dynamic>? request,
     RestRequest? restRequest,
@@ -235,8 +251,16 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
         request?.headers ?? restRequest?.headers ?? <String, String>{};
     newResult.addAll(_headerCustom ?? <String, String>{});
 
+    final bool requiresToken =
+        request?.requiresToken ?? restRequest?.requiresToken ?? true;
     final Map<String, String> actualHeaders =
-        headers?.call(request?.token ?? token) ?? <String, String>{};
+        headers?.call(
+          _resolveRequestToken(
+            requiresToken: requiresToken,
+            requestToken: request?.token,
+          ),
+        ) ??
+        <String, String>{};
 
     actualHeaders.addAll(newResult);
     return actualHeaders;
