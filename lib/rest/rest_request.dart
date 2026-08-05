@@ -37,6 +37,7 @@ class RestRequest<ResultLR> extends RequestAPI<ResultLR> {
     this.bodyType = BodyType.json,
     this.cancelToken,
     this.timeOutDuration,
+    super.requiresToken,
   }) : assert(
           !((bodyType == BodyType.bytes ||
                   bodyType == BodyType.multipartPresigned) &&
@@ -61,6 +62,7 @@ class RestRequest<ResultLR> extends RequestAPI<ResultLR> {
         timeOutDuration: json['timeOutDuration'] != null
             ? Duration(seconds: json['timeOutDuration'])
             : null,
+        requiresToken: json['requiresToken'] ?? true,
       );
 
   @override
@@ -80,5 +82,6 @@ class RestRequest<ResultLR> extends RequestAPI<ResultLR> {
         "bodyType": bodyType,
         "cancelToken": cancelToken,
         "timeOutDuration": timeOutDuration?.inSeconds,
+        "requiresToken": requiresToken,
       };
 }

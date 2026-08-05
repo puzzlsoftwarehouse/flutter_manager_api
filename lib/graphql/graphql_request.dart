@@ -37,6 +37,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
     this.retryOptions,
     List<Failure> failures = const <Failure>[],
     super.skipRequest,
+    super.requiresToken,
   });
 
   GraphQLRequest copyWith({
@@ -113,6 +114,7 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
         cancelToken: json['cancelToken'],
         query: json['query'],
         retryOptions: _retryOptionsFromJson(json['retryOptions']),
+        requiresToken: json['requiresToken'] ?? true,
       );
 
   @override
@@ -133,5 +135,6 @@ class GraphQLRequest<ResultLR> extends RequestAPI<ResultLR> {
         "fetchPolicy": fetchPolicy,
         "query": query,
         "retryOptions": retryOptions?.toJson,
+        "requiresToken": requiresToken,
       };
 }
