@@ -23,7 +23,7 @@ Usage
 After installing and configuring the Manager API, you can use it to make requests to your API. Here is an example of how you can make a GET request:
 add files of .graphql on this folder lib/src/services/graphql/
 
-exemplo:
+e.g:
 login.graphql
 ```
 mutation login($email: String!, $password: String!) {
