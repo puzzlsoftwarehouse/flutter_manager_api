@@ -1,12 +1,12 @@
-import 'dart:io';
+import 'dart:convert';
 
 import 'package:collection/collection.dart';
 import 'package:cross_file/cross_file.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:log_print/log_print.dart';
 import 'package:manager_api/default_api_failures.dart';
+import 'package:manager_api/logging/manager_console_log.dart';
 import 'package:manager_api/graphql/graphql_read.dart';
 import 'package:manager_api/graphql/graphql_helper.dart';
 import 'package:manager_api/graphql/graphql_request.dart';
@@ -281,7 +281,11 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
       final RestRequest requestResult = convertRestRequest(request);
       if (requestResult.skipRequest != null) {
         if (_emitRequestLogs) {
-          generateLog("REQUEST SKIPPED: ${requestResult.name}", isAlert: true);
+          generateLog(
+            "REQUEST SKIPPED: ${requestResult.name}",
+            isAlert: true,
+            title: 'REST',
+          );
         }
 
         return requestResult.skipRequest!.result;
@@ -296,12 +300,12 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
       stopwatch?.stop();
 
       if (stopwatch != null) {
-        generateLog(
-          generateMsg(
-            restRequest: requestResult,
-            stopwatch: stopwatch,
-          ),
-          latencyMs: stopwatch.elapsedMilliseconds,
+        logRequest(
+          blockKey: null,
+          restRequest: requestResult,
+          stopwatch: stopwatch,
+          isError: result?['error'] != null,
+          title: 'REST',
         );
       }
 
@@ -340,19 +344,24 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
     }
 
     final bool emitLogs = _emitRequestLogs;
-    final String groupKey =
+    final String groupPrefix =
         _RequestLogFormatting.graphqlBlockKey(requestResult.name);
-    final bool shouldLogRequest =
-        emitLogs && _shouldLogGraphqlGroup(groupKey);
-    final bool useBlock = shouldLogRequest &&
-        ManagerApiRequestLogging.requestLoggerBlocFromEnvironment;
+    final String? compactKey = _compactGraphqlNames ? groupPrefix : null;
+    final bool useBlock = emitLogs && _boxGraphqlBlocks;
     final Stopwatch? stopwatch =
-        shouldLogRequest ? (Stopwatch()..start()) : null;
-    final String? blockKey =
-        useBlock ? groupKey : null;
+        emitLogs ? (Stopwatch()..start()) : null;
+    final String? blockKey = useBlock ? groupPrefix : null;
+    final String? waveKey = emitLogs && !useBlock
+        ? _requestWaveKey(
+            requestResult: requestResult,
+            groupKey: compactKey,
+          )
+        : null;
 
     if (blockKey != null) {
       _graphqlBlockBegin(blockKey);
+    } else if (waveKey != null) {
+      _graphqlBlockBegin(waveKey);
     }
 
     try {
@@ -365,11 +374,13 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
           getException(result.exception?.graphqlErrors);
 
       if (exceptionCode == "cancelled") {
-        if (shouldLogRequest) {
-          _emitGraphqlRequestLog(
+        if (emitLogs) {
+          logRequest(
             blockKey: blockKey,
-            body:
-                "${generateMsg(requestResult: requestResult, stopwatch: stopwatch)} - [CANCELLED]",
+            waveKey: waveKey,
+            groupKey: compactKey,
+            requestResult: requestResult,
+            stopwatch: stopwatch,
             isCanceled: true,
           );
         }
@@ -378,14 +389,18 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
             DefaultAPIFailures.cancelErrorCode)!);
       }
 
-      if (shouldLogRequest) {
-        _emitGraphqlRequestLog(
+      final bool handledException =
+          ignoreCode != null && exceptionCode == ignoreCode.toString();
+
+      if (emitLogs) {
+        logRequest(
           blockKey: blockKey,
-          body: generateMsg(
-            requestResult: requestResult,
-            stopwatch: stopwatch,
-          ),
-          latencyMs: stopwatch?.elapsedMilliseconds,
+          waveKey: waveKey,
+          groupKey: compactKey,
+          requestResult: requestResult,
+          stopwatch: stopwatch,
+          isError: result.hasException && !handledException,
+          isAlert: result.hasException && handledException,
         );
       }
 
@@ -417,11 +432,14 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
         stopwatch!.stop();
       }
 
-      if (shouldLogRequest) {
-        _emitGraphqlRequestLog(
+      if (emitLogs) {
+        logRequest(
           blockKey: blockKey,
-          body:
-              "${generateRequestLogBase(requestResult: requestResult)} — exceção: $error",
+          waveKey: waveKey,
+          groupKey: compactKey,
+          requestResult: requestResult,
+          stopwatch: stopwatch,
+          suffix: '  EXCEPTION: $error',
           isError: true,
         );
       }
@@ -429,7 +447,9 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
       rethrow;
     } finally {
       if (blockKey != null) {
-        _graphqlBlockRelease(blockKey);
+        _graphqlBlockRelease(blockKey, boxed: true);
+      } else if (waveKey != null) {
+        _graphqlBlockRelease(waveKey, boxed: false);
       }
     }
   }
@@ -444,6 +464,7 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
     generateLog(
       'Rest Request Error: ${errorDetails.technicalLog ?? exception.toString()}',
       isError: true,
+      title: 'REST',
     );
 
     final List<Failure> allFailures = [..._failures, ...failures];
@@ -549,7 +570,7 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
       );
     }
 
-    generateLog("REQUEST TYPE REST NOT FOUND", isError: true);
+    generateLog("REQUEST TYPE REST NOT FOUND", isError: true, title: 'REST');
     return null;
   }
 

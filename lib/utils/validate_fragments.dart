@@ -1,7 +1,7 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:manager_api/logging/manager_console_log.dart';
 
 class ValidateFragments {
   static Future<String?> validateAllGraphQLFiles() async {
@@ -14,7 +14,11 @@ class ValidateFragments {
       final path = file.path.replaceAll('\\', '/');
       final String? fragmentNotFound = await _validateFragments(path);
       if (fragmentNotFound != null) {
-        debugPrint('File: $path has not the fragment $fragmentNotFound');
+        ManagerConsoleLog.emit(
+          title: 'GraphQL',
+          message: 'File: $path has not the fragment $fragmentNotFound',
+          accent: const Color(0xFFFFD54F),
+        );
         return 'File: $path has not the fragment $fragmentNotFound';
       }
     }

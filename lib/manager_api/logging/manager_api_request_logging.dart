@@ -1,15 +1,26 @@
 part of 'package:manager_api/manager_api.dart';
 
+typedef _RequestLogParts = ({String head, String vars, String label});
+
 final class _GraphqlBlockLineEntry {
   const _GraphqlBlockLineEntry({
-    required this.body,
+    required this.head,
+    required this.vars,
+    required this.label,
+    required this.suffix,
     required this.isError,
     required this.isAlert,
     required this.isCanceled,
     required this.latencyMs,
   });
 
-  final String body;
+  final String head;
+
+  final String vars;
+
+  final String label;
+
+  final String suffix;
 
   final bool isError;
 
@@ -18,6 +29,52 @@ final class _GraphqlBlockLineEntry {
   final bool isCanceled;
 
   final int? latencyMs;
+
+  String get dedupeKey => '$head|$vars';
+}
+
+final class _GraphqlBlockGroup {
+  _GraphqlBlockGroup(_GraphqlBlockLineEntry entry)
+      : head = entry.head,
+        vars = entry.vars,
+        suffix = entry.suffix,
+        latencyMs = entry.latencyMs,
+        isError = entry.isError,
+        isAlert = entry.isAlert,
+        isCanceled = entry.isCanceled;
+
+  final String head;
+
+  final String vars;
+
+  String suffix;
+
+  int? latencyMs;
+
+  bool isError;
+
+  bool isAlert;
+
+  bool isCanceled;
+
+  int count = 1;
+
+  void merge(_GraphqlBlockLineEntry entry) {
+    count += 1;
+    isError = isError || entry.isError;
+    isAlert = isAlert || entry.isAlert;
+    isCanceled = isCanceled || entry.isCanceled;
+
+    final int? incoming = entry.latencyMs;
+
+    if (incoming != null && (latencyMs == null || incoming > latencyMs!)) {
+      latencyMs = incoming;
+    }
+
+    if (entry.suffix.isNotEmpty && !suffix.contains(entry.suffix)) {
+      suffix = '$suffix${entry.suffix}';
+    }
+  }
 }
 
 mixin ManagerApiRequestLogging on ManagerToken {
@@ -32,8 +89,6 @@ mixin ManagerApiRequestLogging on ManagerToken {
 
   Map<String, int>? _graphqlBlockInflight;
 
-  Set<String>? _graphqlGroupLoggedKeys;
-
   Map<String, Stopwatch>? _graphqlBlockWallClock;
 
   Map<String, List<_GraphqlBlockLineEntry>>? _graphqlBlockPendingLines;
@@ -41,50 +96,63 @@ mixin ManagerApiRequestLogging on ManagerToken {
   bool get _emitRequestLogs =>
       kDebugMode && ManagerApiRequestLogging.requestLoggerFromEnvironment;
 
-  bool _shouldLogGraphqlGroup(String groupKey) {
-    if (ManagerApiRequestLogging.requestLoggerGroupFromEnvironment) {
-      return true;
-    }
+  bool get _compactGraphqlNames =>
+      ManagerApiRequestLogging.requestLoggerGroupFromEnvironment;
 
-    final Set<String> logged =
-        _graphqlGroupLoggedKeys ??= <String>{};
+  bool get _boxGraphqlBlocks =>
+      ManagerApiRequestLogging.requestLoggerBlocFromEnvironment;
 
-    if (logged.contains(groupKey)) {
-      return false;
-    }
-
-    logged.add(groupKey);
-
-    return true;
-  }
-
-  void _emitGraphqlRequestLog({
-    required String? blockKey,
-    required String body,
+  void logRequest({
+    String? blockKey,
+    String? waveKey,
+    String? groupKey,
+    RestRequest? restRequest,
+    GraphQLRequest<dynamic>? requestResult,
+    Stopwatch? stopwatch,
+    String suffix = '',
     bool isError = false,
     bool isAlert = false,
     bool isCanceled = false,
-    int? latencyMs,
+    String title = 'GraphQL',
   }) {
-    if (blockKey != null) {
+    final _RequestLogParts parts = _requestLogParts(
+      restRequest: restRequest,
+      requestResult: requestResult,
+      groupKey: groupKey ?? blockKey,
+    );
+    final int? latencyMs = stopwatch?.elapsedMilliseconds;
+    final String? bucketKey = blockKey ?? waveKey;
+
+    if (bucketKey != null) {
       _graphqlBlockAppend(
-        blockKey: blockKey,
-        body: body,
-        isError: isError,
-        isAlert: isAlert,
-        isCanceled: isCanceled,
-        latencyMs: latencyMs,
+        blockKey: bucketKey,
+        entry: _GraphqlBlockLineEntry(
+          head: parts.head,
+          vars: parts.vars,
+          label: parts.label,
+          suffix: suffix,
+          isError: isError,
+          isAlert: isAlert,
+          isCanceled: isCanceled,
+          latencyMs: latencyMs,
+        ),
       );
 
       return;
     }
 
     generateLog(
-      body,
+      _RequestLogFormatting.requestLine(
+        head: parts.head,
+        vars: parts.vars,
+        latencyMs: latencyMs,
+        suffix: suffix,
+      ),
       isError: isError,
       isAlert: isAlert,
       isCanceled: isCanceled,
       latencyMs: latencyMs,
+      title: title,
     );
   }
 
@@ -106,31 +174,18 @@ mixin ManagerApiRequestLogging on ManagerToken {
 
   void _graphqlBlockAppend({
     required String blockKey,
-    required String body,
-    bool isError = false,
-    bool isAlert = false,
-    bool isCanceled = false,
-    int? latencyMs,
+    required _GraphqlBlockLineEntry entry,
   }) {
     final Map<String, List<_GraphqlBlockLineEntry>> pending =
         _graphqlBlockPendingLines ??=
             <String, List<_GraphqlBlockLineEntry>>{};
 
-    final List<_GraphqlBlockLineEntry> bucket =
-        pending.putIfAbsent(blockKey, () => <_GraphqlBlockLineEntry>[]);
-
-    bucket.add(
-      _GraphqlBlockLineEntry(
-        body: body,
-        isError: isError,
-        isAlert: isAlert,
-        isCanceled: isCanceled,
-        latencyMs: latencyMs,
-      ),
-    );
+    pending
+        .putIfAbsent(blockKey, () => <_GraphqlBlockLineEntry>[])
+        .add(entry);
   }
 
-  void _graphqlBlockRelease(String blockKey) {
+  void _graphqlBlockRelease(String blockKey, {required bool boxed}) {
     final Map<String, int>? inflight = _graphqlBlockInflight;
 
     if (inflight == null) {
@@ -172,6 +227,7 @@ mixin ManagerApiRequestLogging on ManagerToken {
         blockKey: blockKey,
         lines: lines,
         wallMs: wallMs,
+        boxed: boxed,
       );
     } else {
       inflight[blockKey] = next;
@@ -182,6 +238,7 @@ mixin ManagerApiRequestLogging on ManagerToken {
     required String blockKey,
     required List<_GraphqlBlockLineEntry> lines,
     required int wallMs,
+    required bool boxed,
   }) {
     if (lines.isEmpty) {
       return;
@@ -191,54 +248,199 @@ mixin ManagerApiRequestLogging on ManagerToken {
       return;
     }
 
-    generateLog('------------------', neutralStyle: true);
+    final Map<String, _GraphqlBlockGroup> groups =
+        <String, _GraphqlBlockGroup>{};
 
-    for (final _GraphqlBlockLineEntry line in lines) {
+    for (final _GraphqlBlockLineEntry entry in lines) {
+      final _GraphqlBlockGroup? group = groups[entry.dedupeKey];
+
+      if (group == null) {
+        groups[entry.dedupeKey] = _GraphqlBlockGroup(entry);
+
+        continue;
+      }
+
+      group.merge(entry);
+    }
+
+    if (boxed) {
+      generateLog('┌ $blockKey', neutralStyle: true);
+    }
+
+    for (final _GraphqlBlockGroup group in groups.values) {
       generateLog(
-        line.body,
-        isError: line.isError,
-        isAlert: line.isAlert,
-        isCanceled: line.isCanceled,
-        latencyMs: line.latencyMs,
+        _RequestLogFormatting.requestLine(
+          head: group.head,
+          vars: group.vars,
+          latencyMs: group.latencyMs,
+          suffix: group.suffix,
+          count: group.count,
+        ),
+        prefix: boxed ? '│ ' : '',
+        isError: group.isError,
+        isAlert: group.isAlert,
+        isCanceled: group.isCanceled,
+        latencyMs: group.latencyMs,
       );
     }
 
-    generateLog(
-      '[$blockKey] total do bloco: ${_RequestLogFormatting.formatElapsed(wallMs)}',
-      latencyMs: wallMs,
-    );
+    if (!boxed) {
+      return;
+    }
 
-    generateLog('------------------', neutralStyle: true);
+    generateLog(
+      '└ ${_blockSummary(
+        lines: lines,
+        groups: groups.values,
+        wallMs: wallMs,
+      )}',
+      latencyMs: wallMs,
+      showStatus: false,
+    );
+  }
+
+  String _blockSummary({
+    required List<_GraphqlBlockLineEntry> lines,
+    required Iterable<_GraphqlBlockGroup> groups,
+    required int wallMs,
+  }) {
+    int errors = 0;
+    int canceled = 0;
+    int slow = 0;
+    int duplicated = 0;
+    int slowestMs = -1;
+    String slowestLabel = '';
+
+    for (final _GraphqlBlockLineEntry line in lines) {
+      if (line.isError) {
+        errors += 1;
+      }
+
+      if (line.isCanceled) {
+        canceled += 1;
+      }
+
+      final int? elapsed = line.latencyMs;
+
+      if (elapsed == null) {
+        continue;
+      }
+
+      if (_RequestLogFormatting.isSlow(elapsed)) {
+        slow += 1;
+      }
+
+      if (elapsed > slowestMs) {
+        slowestMs = elapsed;
+        slowestLabel = line.label;
+      }
+    }
+
+    for (final _GraphqlBlockGroup group in groups) {
+      duplicated += group.count - 1;
+    }
+
+    final List<String> parts = <String>[
+      _RequestLogFormatting.formatElapsed(wallMs),
+      '${lines.length} ${lines.length == 1 ? 'req' : 'reqs'}',
+    ];
+
+    if (errors > 0) {
+      parts.add('✕ $errors');
+    }
+
+    if (canceled > 0) {
+      parts.add('⊘ $canceled');
+    }
+
+    if (slow > 0) {
+      parts.add('! $slow slow');
+    }
+
+    if (duplicated > 0) {
+      parts.add('×$duplicated dup');
+    }
+
+    if (lines.length > 1 && slowestMs >= 0) {
+      parts.add(
+        'slowest $slowestLabel '
+        '${_RequestLogFormatting.formatElapsed(slowestMs)}',
+      );
+    }
+
+    return parts.join(' · ');
   }
 
   String generateMsg({
     RestRequest? restRequest,
     GraphQLRequest<dynamic>? requestResult,
     Stopwatch? stopwatch,
+    String? groupKey,
   }) {
-    final String base = generateRequestLogBase(
+    final _RequestLogParts parts = _requestLogParts(
       restRequest: restRequest,
       requestResult: requestResult,
+      groupKey: groupKey,
     );
-    final int elapsedMs = stopwatch?.elapsedMilliseconds ?? 0;
 
-    return '$base - ${_RequestLogFormatting.formatElapsed(elapsedMs)}';
+    return _RequestLogFormatting.requestLine(
+      head: parts.head,
+      vars: parts.vars,
+      latencyMs: stopwatch?.elapsedMilliseconds,
+    );
   }
 
   String generateRequestLogBase({
     RestRequest? restRequest,
     GraphQLRequest<dynamic>? requestResult,
+    String? groupKey,
   }) {
-    final String type = requestResult?.type.toString().split(".").last ??
-        restRequest?.type.toString().split(".").last ??
-        "".toUpperCase();
+    final _RequestLogParts parts = _requestLogParts(
+      restRequest: restRequest,
+      requestResult: requestResult,
+      groupKey: groupKey,
+    );
 
-    final String name = requestResult?.name ?? restRequest?.name ?? "";
+    return '${parts.head}  ${parts.vars}';
+  }
+
+  _RequestLogParts _requestLogParts({
+    RestRequest? restRequest,
+    GraphQLRequest<dynamic>? requestResult,
+    String? groupKey,
+  }) {
+    final String type = (requestResult?.type.toString().split(".").last ??
+            restRequest?.type.toString().split(".").last ??
+            "")
+        .toUpperCase();
+
+    final String label = _RequestLogFormatting.compactName(
+      requestResult?.name ?? restRequest?.name ?? "",
+      groupKey,
+    );
     final Map<String, dynamic> variables =
         requestResult?.variables ?? restRequest?.body ?? <String, dynamic>{};
-    final String path = requestResult?.path.toUpperCase() ?? "";
+    final String target = restRequest != null ? ' ${restRequest.url}' : '';
 
-    return "[$path] [$type $name] - $variables";
+    return (
+      head: '${_RequestLogFormatting.typeColumn(type)} $label$target',
+      vars: _RequestLogFormatting.formatVariables(variables),
+      label: label,
+    );
+  }
+
+  String _requestWaveKey({
+    RestRequest? restRequest,
+    GraphQLRequest<dynamic>? requestResult,
+    String? groupKey,
+  }) {
+    final _RequestLogParts parts = _requestLogParts(
+      restRequest: restRequest,
+      requestResult: requestResult,
+      groupKey: groupKey,
+    );
+
+    return '${parts.head}|${parts.vars}';
   }
 
   void generateLog(
@@ -248,6 +450,9 @@ mixin ManagerApiRequestLogging on ManagerToken {
     bool isCanceled = false,
     int? latencyMs,
     bool neutralStyle = false,
+    bool showStatus = true,
+    String prefix = '',
+    String title = 'GraphQL',
   }) {
     if (!ManagerApiRequestLogging.requestLoggerFromEnvironment) {
       return;
@@ -255,12 +460,6 @@ mixin ManagerApiRequestLogging on ManagerToken {
 
     if (!kDebugMode) {
       return;
-    }
-
-    if (!kIsWeb) {
-      if (Platform.isIOS) {
-        return debugPrint("GraphQL: $body");
-      }
     }
 
     final Color accentColor = _RequestLogPalette.resolveAccent(
@@ -271,12 +470,19 @@ mixin ManagerApiRequestLogging on ManagerToken {
       latencyMs: latencyMs,
     );
 
-    LogPrint(
-      body,
-      type: LogPrintType.custom,
-      title: "Graphql",
-      titleBackgroundColor: accentColor,
-      messageColor: accentColor,
+    final String status = showStatus && !neutralStyle
+        ? '${_RequestLogFormatting.statusIcon(
+            isError: isError,
+            isAlert: isAlert,
+            isCanceled: isCanceled,
+            latencyMs: latencyMs,
+          )} '
+        : '';
+
+    ManagerConsoleLog.emit(
+      title: title,
+      message: '$prefix$status$body',
+      accent: accentColor,
     );
   }
 }
