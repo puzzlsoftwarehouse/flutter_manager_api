@@ -191,11 +191,11 @@ mixin ManagerApiRequestLogging on ManagerToken {
       return;
     }
 
-    generateLog('------------------', neutralStyle: true);
+    generateLog('┌ $blockKey', neutralStyle: true);
 
     for (final _GraphqlBlockLineEntry line in lines) {
       generateLog(
-        line.body,
+        '│ ${line.body}',
         isError: line.isError,
         isAlert: line.isAlert,
         isCanceled: line.isCanceled,
@@ -204,41 +204,50 @@ mixin ManagerApiRequestLogging on ManagerToken {
     }
 
     generateLog(
-      '[$blockKey] total do bloco: ${_RequestLogFormatting.formatElapsed(wallMs)}',
+      '└ ${_RequestLogFormatting.formatElapsed(wallMs)} · '
+      '${lines.length} ${lines.length == 1 ? 'request' : 'requests'}',
       latencyMs: wallMs,
     );
-
-    generateLog('------------------', neutralStyle: true);
   }
 
   String generateMsg({
     RestRequest? restRequest,
     GraphQLRequest<dynamic>? requestResult,
     Stopwatch? stopwatch,
+    String? groupKey,
   }) {
     final String base = generateRequestLogBase(
       restRequest: restRequest,
       requestResult: requestResult,
+      groupKey: groupKey,
     );
-    final int elapsedMs = stopwatch?.elapsedMilliseconds ?? 0;
 
-    return '$base - ${_RequestLogFormatting.formatElapsed(elapsedMs)}';
+    return '${_RequestLogFormatting.latencyColumn(
+      stopwatch?.elapsedMilliseconds,
+    )}  $base';
   }
 
   String generateRequestLogBase({
     RestRequest? restRequest,
     GraphQLRequest<dynamic>? requestResult,
+    String? groupKey,
   }) {
-    final String type = requestResult?.type.toString().split(".").last ??
-        restRequest?.type.toString().split(".").last ??
-        "".toUpperCase();
+    final String type = (requestResult?.type.toString().split(".").last ??
+            restRequest?.type.toString().split(".").last ??
+            "")
+        .toUpperCase();
 
-    final String name = requestResult?.name ?? restRequest?.name ?? "";
+    final String name = _RequestLogFormatting.compactName(
+      requestResult?.name ?? restRequest?.name ?? "",
+      groupKey,
+    );
     final Map<String, dynamic> variables =
         requestResult?.variables ?? restRequest?.body ?? <String, dynamic>{};
-    final String path = requestResult?.path.toUpperCase() ?? "";
+    final String vars = _RequestLogFormatting.formatVariables(variables);
+    final String target =
+        restRequest != null ? ' ${restRequest.url}' : '';
 
-    return "[$path] [$type $name] - $variables";
+    return '${_RequestLogFormatting.typeColumn(type)} $name$target  $vars';
   }
 
   void generateLog(
@@ -248,6 +257,7 @@ mixin ManagerApiRequestLogging on ManagerToken {
     bool isCanceled = false,
     int? latencyMs,
     bool neutralStyle = false,
+    String title = 'GraphQL',
   }) {
     if (!ManagerApiRequestLogging.requestLoggerFromEnvironment) {
       return;
@@ -255,12 +265,6 @@ mixin ManagerApiRequestLogging on ManagerToken {
 
     if (!kDebugMode) {
       return;
-    }
-
-    if (!kIsWeb) {
-      if (Platform.isIOS) {
-        return debugPrint("GraphQL: $body");
-      }
     }
 
     final Color accentColor = _RequestLogPalette.resolveAccent(
@@ -271,12 +275,10 @@ mixin ManagerApiRequestLogging on ManagerToken {
       latencyMs: latencyMs,
     );
 
-    LogPrint(
-      body,
-      type: LogPrintType.custom,
-      title: "Graphql",
-      titleBackgroundColor: accentColor,
-      messageColor: accentColor,
+    ManagerConsoleLog.emit(
+      title: title,
+      message: body,
+      accent: accentColor,
     );
   }
 }

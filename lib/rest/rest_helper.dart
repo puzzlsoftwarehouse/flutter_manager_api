@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:ui' show Color;
+
 import 'package:cross_file/cross_file.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:manager_api/default_api_failures.dart';
+import 'package:manager_api/logging/manager_console_log.dart';
 import 'package:manager_api/utils/failure_message_resolver.dart';
 import 'package:manager_api/upload/send_media_desktop.dart'
     if (dart.library.html) 'package:manager_api/upload/send_media_web.dart';
@@ -238,7 +241,11 @@ class RestHelper {
           String? exceptionCode;
           String? errorMessage;
 
-          debugPrint(e.response?.data.toString());
+          ManagerConsoleLog.emit(
+            title: 'REST',
+            message: e.response?.data.toString() ?? e.message ?? 'unknown',
+            accent: const Color(0xFFFF5252),
+          );
 
           if (e.response?.data.runtimeType == String) {
             exceptionCode = '000';

@@ -1,12 +1,12 @@
-import 'dart:io';
+import 'dart:convert';
 
 import 'package:collection/collection.dart';
 import 'package:cross_file/cross_file.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:log_print/log_print.dart';
 import 'package:manager_api/default_api_failures.dart';
+import 'package:manager_api/logging/manager_console_log.dart';
 import 'package:manager_api/graphql/graphql_read.dart';
 import 'package:manager_api/graphql/graphql_helper.dart';
 import 'package:manager_api/graphql/graphql_request.dart';
@@ -281,7 +281,11 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
       final RestRequest requestResult = convertRestRequest(request);
       if (requestResult.skipRequest != null) {
         if (_emitRequestLogs) {
-          generateLog("REQUEST SKIPPED: ${requestResult.name}", isAlert: true);
+          generateLog(
+            "REQUEST SKIPPED: ${requestResult.name}",
+            isAlert: true,
+            title: 'REST',
+          );
         }
 
         return requestResult.skipRequest!.result;
@@ -302,6 +306,7 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
             stopwatch: stopwatch,
           ),
           latencyMs: stopwatch.elapsedMilliseconds,
+          title: 'REST',
         );
       }
 
@@ -368,8 +373,11 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
         if (shouldLogRequest) {
           _emitGraphqlRequestLog(
             blockKey: blockKey,
-            body:
-                "${generateMsg(requestResult: requestResult, stopwatch: stopwatch)} - [CANCELLED]",
+            body: '${generateMsg(
+              requestResult: requestResult,
+              stopwatch: stopwatch,
+              groupKey: blockKey,
+            )}  [CANCELLED]',
             isCanceled: true,
           );
         }
@@ -384,6 +392,7 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
           body: generateMsg(
             requestResult: requestResult,
             stopwatch: stopwatch,
+            groupKey: blockKey,
           ),
           latencyMs: stopwatch?.elapsedMilliseconds,
         );
@@ -420,8 +429,11 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
       if (shouldLogRequest) {
         _emitGraphqlRequestLog(
           blockKey: blockKey,
-          body:
-              "${generateRequestLogBase(requestResult: requestResult)} — exceção: $error",
+          body: '${generateMsg(
+            requestResult: requestResult,
+            stopwatch: stopwatch,
+            groupKey: blockKey,
+          )}  [EXCEPTION] $error',
           isError: true,
         );
       }
@@ -444,6 +456,7 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
     generateLog(
       'Rest Request Error: ${errorDetails.technicalLog ?? exception.toString()}',
       isError: true,
+      title: 'REST',
     );
 
     final List<Failure> allFailures = [..._failures, ...failures];
@@ -549,7 +562,7 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
       );
     }
 
-    generateLog("REQUEST TYPE REST NOT FOUND", isError: true);
+    generateLog("REQUEST TYPE REST NOT FOUND", isError: true, title: 'REST');
     return null;
   }
 

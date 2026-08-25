@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:ui' show Color;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
-import 'package:log_print/log_print.dart';
+import 'package:manager_api/logging/manager_console_log.dart';
 import 'package:manager_api/models/websocket/web_socket_type.dart';
 import 'package:manager_api/websocket/web_socket_constants.dart';
 import 'package:manager_api/websocket/web_socket_incoming.dart';
@@ -462,18 +462,10 @@ class WebSocketService extends WebSocketManager with ChangeNotifier {
       return;
     }
 
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
-      debugPrint("WebSocket $_type: $name");
-
-      return;
-    }
-
-    LogPrint(
-      name,
-      type: LogPrintType.custom,
-      title: "WebSocket $_type",
-      titleBackgroundColor: Colors.lightBlue.shade700,
-      messageColor: Colors.lightBlueAccent.shade100,
+    ManagerConsoleLog.emit(
+      title: 'WS ${_type ?? 'socket'}',
+      message: name,
+      accent: const Color(0xFF4FC3F7),
     );
   }
 
