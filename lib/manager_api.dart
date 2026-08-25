@@ -300,12 +300,11 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
       stopwatch?.stop();
 
       if (stopwatch != null) {
-        generateLog(
-          generateMsg(
-            restRequest: requestResult,
-            stopwatch: stopwatch,
-          ),
-          latencyMs: stopwatch.elapsedMilliseconds,
+        logRequest(
+          blockKey: null,
+          restRequest: requestResult,
+          stopwatch: stopwatch,
+          isError: result?['error'] != null,
           title: 'REST',
         );
       }
@@ -345,19 +344,24 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
     }
 
     final bool emitLogs = _emitRequestLogs;
-    final String groupKey =
+    final String groupPrefix =
         _RequestLogFormatting.graphqlBlockKey(requestResult.name);
-    final bool shouldLogRequest =
-        emitLogs && _shouldLogGraphqlGroup(groupKey);
-    final bool useBlock = shouldLogRequest &&
-        ManagerApiRequestLogging.requestLoggerBlocFromEnvironment;
+    final String? compactKey = _compactGraphqlNames ? groupPrefix : null;
+    final bool useBlock = emitLogs && _boxGraphqlBlocks;
     final Stopwatch? stopwatch =
-        shouldLogRequest ? (Stopwatch()..start()) : null;
-    final String? blockKey =
-        useBlock ? groupKey : null;
+        emitLogs ? (Stopwatch()..start()) : null;
+    final String? blockKey = useBlock ? groupPrefix : null;
+    final String? waveKey = emitLogs && !useBlock
+        ? _requestWaveKey(
+            requestResult: requestResult,
+            groupKey: compactKey,
+          )
+        : null;
 
     if (blockKey != null) {
       _graphqlBlockBegin(blockKey);
+    } else if (waveKey != null) {
+      _graphqlBlockBegin(waveKey);
     }
 
     try {
@@ -370,14 +374,13 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
           getException(result.exception?.graphqlErrors);
 
       if (exceptionCode == "cancelled") {
-        if (shouldLogRequest) {
-          _emitGraphqlRequestLog(
+        if (emitLogs) {
+          logRequest(
             blockKey: blockKey,
-            body: '${generateMsg(
-              requestResult: requestResult,
-              stopwatch: stopwatch,
-              groupKey: blockKey,
-            )}  [CANCELLED]',
+            waveKey: waveKey,
+            groupKey: compactKey,
+            requestResult: requestResult,
+            stopwatch: stopwatch,
             isCanceled: true,
           );
         }
@@ -386,15 +389,18 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
             DefaultAPIFailures.cancelErrorCode)!);
       }
 
-      if (shouldLogRequest) {
-        _emitGraphqlRequestLog(
+      final bool handledException =
+          ignoreCode != null && exceptionCode == ignoreCode.toString();
+
+      if (emitLogs) {
+        logRequest(
           blockKey: blockKey,
-          body: generateMsg(
-            requestResult: requestResult,
-            stopwatch: stopwatch,
-            groupKey: blockKey,
-          ),
-          latencyMs: stopwatch?.elapsedMilliseconds,
+          waveKey: waveKey,
+          groupKey: compactKey,
+          requestResult: requestResult,
+          stopwatch: stopwatch,
+          isError: result.hasException && !handledException,
+          isAlert: result.hasException && handledException,
         );
       }
 
@@ -426,14 +432,14 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
         stopwatch!.stop();
       }
 
-      if (shouldLogRequest) {
-        _emitGraphqlRequestLog(
+      if (emitLogs) {
+        logRequest(
           blockKey: blockKey,
-          body: '${generateMsg(
-            requestResult: requestResult,
-            stopwatch: stopwatch,
-            groupKey: blockKey,
-          )}  [EXCEPTION] $error',
+          waveKey: waveKey,
+          groupKey: compactKey,
+          requestResult: requestResult,
+          stopwatch: stopwatch,
+          suffix: '  EXCEPTION: $error',
           isError: true,
         );
       }
@@ -441,7 +447,9 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
       rethrow;
     } finally {
       if (blockKey != null) {
-        _graphqlBlockRelease(blockKey);
+        _graphqlBlockRelease(blockKey, boxed: true);
+      } else if (waveKey != null) {
+        _graphqlBlockRelease(waveKey, boxed: false);
       }
     }
   }

@@ -6,9 +6,52 @@ abstract final class _RequestLogFormatting {
   static const int variablesMaxLength =
       int.fromEnvironment('REQUESTLOGGER_VARS_MAX', defaultValue: 0);
 
+  static const int slowThresholdMs =
+      int.fromEnvironment('REQUESTLOGGER_SLOW_MS', defaultValue: 1000);
+
   static const int _latencyColumnWidth = 8;
 
   static const int _typeColumnWidth = 8;
+
+  static bool isSlow(int elapsedMs) =>
+      slowThresholdMs > 0 && elapsedMs >= slowThresholdMs;
+
+  static String statusIcon({
+    required bool isError,
+    required bool isAlert,
+    required bool isCanceled,
+    required int? latencyMs,
+  }) {
+    if (isError) {
+      return '✕';
+    }
+
+    if (isCanceled) {
+      return '⊘';
+    }
+
+    if (isAlert) {
+      return '⚠';
+    }
+
+    if (latencyMs != null && isSlow(latencyMs)) {
+      return '!';
+    }
+
+    return '✓';
+  }
+
+  static String requestLine({
+    required String head,
+    required String vars,
+    required int? latencyMs,
+    String suffix = '',
+    int count = 1,
+  }) {
+    final String repeat = count > 1 ? ' ×$count' : '';
+
+    return '${latencyColumn(latencyMs)}  $head$repeat  $vars$suffix';
+  }
 
   static String formatElapsed(int elapsedMs) {
     if (elapsedMs < 1000) {
