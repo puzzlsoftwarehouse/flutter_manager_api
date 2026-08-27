@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:collection/collection.dart';
@@ -346,16 +347,12 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
     final bool emitLogs = _emitRequestLogs;
     final String groupPrefix =
         _RequestLogFormatting.graphqlBlockKey(requestResult.name);
-    final String? compactKey = _compactGraphqlNames ? groupPrefix : null;
     final bool useBlock = emitLogs && _boxGraphqlBlocks;
     final Stopwatch? stopwatch =
         emitLogs ? (Stopwatch()..start()) : null;
     final String? blockKey = useBlock ? groupPrefix : null;
     final String? waveKey = emitLogs && !useBlock
-        ? _requestWaveKey(
-            requestResult: requestResult,
-            groupKey: compactKey,
-          )
+        ? _requestWaveKey(requestResult: requestResult)
         : null;
 
     if (blockKey != null) {
@@ -378,7 +375,6 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
           logRequest(
             blockKey: blockKey,
             waveKey: waveKey,
-            groupKey: compactKey,
             requestResult: requestResult,
             stopwatch: stopwatch,
             isCanceled: true,
@@ -396,7 +392,6 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
         logRequest(
           blockKey: blockKey,
           waveKey: waveKey,
-          groupKey: compactKey,
           requestResult: requestResult,
           stopwatch: stopwatch,
           isError: result.hasException && !handledException,
@@ -436,7 +431,6 @@ class ManagerAPI with ManagerToken, ManagerApiRequestLogging {
         logRequest(
           blockKey: blockKey,
           waveKey: waveKey,
-          groupKey: compactKey,
           requestResult: requestResult,
           stopwatch: stopwatch,
           suffix: '  EXCEPTION: $error',

@@ -14,6 +14,8 @@ abstract final class ManagerConsoleLog {
 
   static const Color uploadBadge = Color(0xFF6D4C41);
 
+  static const Color errorBadge = Color(0xFFC62828);
+
   static const int _badgeWidth = 7;
 
   static void emit({

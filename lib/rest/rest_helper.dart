@@ -245,6 +245,7 @@ class RestHelper {
             title: 'REST',
             message: e.response?.data.toString() ?? e.message ?? 'unknown',
             accent: const Color(0xFFFF5252),
+            badge: ManagerConsoleLog.errorBadge,
           );
 
           if (e.response?.data.runtimeType == String) {
