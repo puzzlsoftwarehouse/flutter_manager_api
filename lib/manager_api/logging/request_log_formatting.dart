@@ -13,6 +13,16 @@ abstract final class _RequestLogFormatting {
 
   static const int _typeColumnWidth = 8;
 
+  static const int _statusColumnWidth = 2;
+
+  static const String branchLast = '└─ ';
+
+  static const String branchMiddle = '├─ ';
+
+  static const String branchTrailPipe = '│  ';
+
+  static const String branchTrailBlank = '   ';
+
   static bool isSlow(int elapsedMs) =>
       slowThresholdMs > 0 && elapsedMs >= slowThresholdMs;
 
@@ -51,6 +61,45 @@ abstract final class _RequestLogFormatting {
     final String repeat = count > 1 ? ' ×$count' : '';
 
     return '${latencyColumn(latencyMs)}  $head$repeat  $vars$suffix';
+  }
+
+  static String treeLabelBody({
+    required String label,
+    String target = '',
+    int count = 1,
+  }) {
+    final String repeat = count > 1 ? ' ×$count' : '';
+
+    return '$label$target$repeat';
+  }
+
+  static String treeRequestLine({
+    required int? latencyMs,
+    required String type,
+    required String indent,
+    required String body,
+    required String vars,
+    String suffix = '',
+    int bodyWidth = 0,
+  }) =>
+      '${latencyColumn(latencyMs)}  ${typeColumn(type)} '
+      '$indent${body.padRight(bodyWidth)}  $vars$suffix';
+
+  static String treeBranchLine({
+    required String indent,
+    required String body,
+    String detail = '',
+    int bodyWidth = 0,
+  }) {
+    final String columns = '${' ' * _statusColumnWidth}'
+        '${' ' * _latencyColumnWidth}  '
+        '${' ' * _typeColumnWidth} ';
+
+    if (detail.isEmpty) {
+      return '$columns$indent$body';
+    }
+
+    return '$columns$indent${body.padRight(bodyWidth)}  $detail';
   }
 
   static String formatElapsed(int elapsedMs) {
@@ -100,16 +149,12 @@ abstract final class _RequestLogFormatting {
     return '${encoded.substring(0, variablesMaxLength)}…';
   }
 
-  static String compactName(String name, String? groupKey) {
-    if (groupKey == null || groupKey.isEmpty || name == groupKey) {
+  static String relativeName(String name, String prefix) {
+    if (prefix.isEmpty || !name.startsWith('${prefix}_')) {
       return name;
     }
 
-    if (!name.startsWith('${groupKey}_')) {
-      return name;
-    }
-
-    return '…${name.substring(groupKey.length)}';
+    return name.substring(prefix.length + 1);
   }
 
   static String graphqlBlockKey(String operationName) {
