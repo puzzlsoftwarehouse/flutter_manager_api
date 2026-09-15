@@ -47,7 +47,7 @@ class MultipartMediaUploadRequest {
 class MultipartMediaUploader {
   MultipartMediaUploader._();
 
-  static const int webMaxConcurrentParts = 4;
+  static const int webMaxConcurrentParts = 6;
   static const int nativeMaxConcurrentParts = 6;
 
   static const Duration _apiConnectTimeout = Duration(seconds: 30);

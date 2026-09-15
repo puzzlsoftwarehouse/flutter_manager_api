@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cross_file/cross_file.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:manager_api/upload/common/blur_hash_encoder.dart';
 import 'package:manager_api/upload/common/upload_fields.dart';
 import 'package:manager_api/upload/common/upload_map_reader.dart';
@@ -45,15 +46,14 @@ class WebMultipartUpload {
     }
 
     const WebUploadBlobLoader blobLoader = WebUploadBlobLoader();
-    final Future<web.Blob> blobFuture = blobLoader.load(file);
-    final Future<String?> blurHashFuture = BlurHashEncoder.resolve(
+    final web.Blob fileBlob = await blobLoader.load(file);
+    final Future<String?>? blurHashFuture = _resolveBlurHashFuture(
       file: file,
-      existingBlurHash: UploadFields.blurHash(fields),
-      mimetype: mimetype,
+      fields: fields,
       filename: filename,
-      contentDatumTypeSlug: UploadFields.contentDatumTypeSlug(fields),
+      mimetype: mimetype,
+      fileSize: fileBlob.size,
     );
-    final web.Blob fileBlob = await blobFuture;
     final WebUploadWorker uploadWorker = WebUploadWorker();
     final Set<void Function()> activeCancels = <void Function()>{};
 
@@ -155,5 +155,32 @@ class WebMultipartUpload {
       }
       uploadWorker.dispose();
     }
+  }
+
+  static const int _webBlurHashMaxBytes = 8 * 1024 * 1024;
+
+  static Future<String?>? _resolveBlurHashFuture({
+    required XFile file,
+    required Map<String, dynamic> fields,
+    required String filename,
+    required String? mimetype,
+    required int fileSize,
+  }) {
+    final String? existingBlurHash = UploadFields.blurHash(fields);
+    if (existingBlurHash != null && existingBlurHash.isNotEmpty) {
+      return Future<String?>.value(existingBlurHash);
+    }
+
+    if (kIsWeb && fileSize > _webBlurHashMaxBytes) {
+      return null;
+    }
+
+    return BlurHashEncoder.resolve(
+      file: file,
+      mimetype: mimetype,
+      filename: filename,
+      contentDatumTypeSlug: UploadFields.contentDatumTypeSlug(fields),
+      fileSize: fileSize,
+    );
   }
 }

@@ -3,6 +3,7 @@ import 'dart:js_interop';
 import 'dart:typed_data';
 
 import 'package:cross_file/cross_file.dart';
+import 'package:manager_api/upload/web/web_upload_blob_registry.dart';
 import 'package:web/web.dart' as web;
 
 class WebUploadBlobLoader {
@@ -10,6 +11,19 @@ class WebUploadBlobLoader {
 
   Future<web.Blob> load(XFile file) async {
     final String filePath = file.path;
+
+    if (filePath.startsWith('blob:')) {
+      final Future<web.Blob?> Function(String blobUrl)? resolver =
+          WebUploadBlobRegistry.resolveBlobUrl;
+      if (resolver != null) {
+        try {
+          final web.Blob? resolvedBlob = await resolver(filePath);
+          if (resolvedBlob != null) {
+            return resolvedBlob;
+          }
+        } catch (_) {}
+      }
+    }
 
     if (_canLoadBlobFromPath(filePath)) {
       try {
