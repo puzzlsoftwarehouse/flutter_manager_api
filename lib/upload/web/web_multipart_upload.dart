@@ -60,8 +60,7 @@ class WebMultipartUpload {
     const WebUploadBlobLoader blobLoader = WebUploadBlobLoader();
     final String blobCacheKey = _sourceBlobCacheKey(file);
     final web.Blob? cachedBlob = _sourceBlobCacheByPath[blobCacheKey];
-    final web.Blob fileBlob =
-        cachedBlob ?? await blobLoader.load(file);
+    final web.Blob fileBlob = cachedBlob ?? await blobLoader.load(file);
     if (cachedBlob == null) {
       _sourceBlobCacheByPath[blobCacheKey] = fileBlob;
     }
@@ -163,9 +162,6 @@ class WebMultipartUpload {
           },
         ),
       );
-      if (uploadResult['data'] != null) {
-        clearSourceBlobCache(path: blobCacheKey);
-      }
       return uploadResult;
     } catch (error) {
       if (error is MultipartPartCancelledException ||
@@ -175,6 +171,7 @@ class WebMultipartUpload {
       }
       return UploadResult.fromCaughtError(error);
     } finally {
+      clearSourceBlobCache(path: blobCacheKey);
       await cancelSubscription?.cancel();
       for (final void Function() cancel in List<void Function()>.from(
         activeCancels,
