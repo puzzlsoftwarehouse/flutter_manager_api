@@ -25,9 +25,28 @@ class UploadResult {
   }
 
   static Map<String, dynamic> fromCaughtError(Object error) {
+    if (error is DioException) {
+      return fromDioException(error);
+    }
+    final String technicalMessage = error.toString();
+    if (FailureMessageResolver.matchesNoConnectionMessage(technicalMessage)) {
+      return failure(
+        code: DefaultAPIFailures.noConnectionCode,
+        message: 'No internet connection',
+      );
+    }
+    if (FailureMessageResolver.matchesTimeoutMessage(technicalMessage)) {
+      return failure(
+        code: DefaultAPIFailures.timeoutCode,
+        message: 'The connection has timed out. Try again',
+      );
+    }
     return failure(
       code: '000',
-      message: error.toString(),
+      message: FailureMessageResolver.resolveUserMessage(
+        fallback: 'Unexpected upload error',
+        technicalLog: technicalMessage,
+      ),
     );
   }
 

@@ -1,3 +1,4 @@
+import 'package:manager_api/default_api_failures.dart';
 import 'package:manager_api/models/graphql/graphql_result.dart';
 
 class GraphQLErrorDetails {
@@ -27,9 +28,13 @@ class RestErrorDetails {
 
   bool get isNoConnection =>
       type == 'noConnection' ||
+      code == DefaultAPIFailures.noConnectionCode ||
       FailureMessageResolver.matchesNoConnectionMessage(userMessage);
 
-  bool get isTimeout => type == 'timeout' || userMessage == 'timeout';
+  bool get isTimeout =>
+      type == 'timeout' ||
+      code == DefaultAPIFailures.timeoutCode ||
+      userMessage == 'timeout';
 
   bool get isCancel =>
       type == 'cancel' ||
@@ -282,6 +287,20 @@ class FailureMessageResolver {
       'sem conexão',
       'sem conexao',
       'noconnection',
+    ]);
+  }
+
+  static bool matchesTimeoutMessage(String? message) {
+    final String? normalized = _normalizeText(message)?.toLowerCase();
+
+    if (normalized == null) {
+      return false;
+    }
+
+    return _containsAny(normalized, <String>[
+      'timed out',
+      'timeout',
+      'time out',
     ]);
   }
 
