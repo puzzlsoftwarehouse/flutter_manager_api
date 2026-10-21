@@ -17,9 +17,12 @@ class WebUploadBlobLoader {
           WebUploadBlobRegistry.resolveBlobUrl;
       if (resolver != null) {
         try {
-          final web.Blob? resolvedBlob = await resolver(filePath);
-          if (resolvedBlob != null) {
-            return resolvedBlob;
+          final Object? resolvedObject = await resolver(filePath);
+          if (resolvedObject is web.Blob) {
+            return resolvedObject;
+          }
+          if (resolvedObject is web.File) {
+            return resolvedObject;
           }
         } catch (_) {}
       }

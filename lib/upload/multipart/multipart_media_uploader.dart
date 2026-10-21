@@ -49,6 +49,12 @@ class MultipartMediaUploader {
 
   static const int webMaxConcurrentParts = 6;
   static const int nativeMaxConcurrentParts = 6;
+  static const int defaultMaxPartAttempts = 3;
+  static const List<Duration> defaultPartRetryBackoff = <Duration>[
+    Duration(seconds: 1),
+    Duration(seconds: 2),
+    Duration(seconds: 4),
+  ];
 
   static const Duration _apiConnectTimeout = Duration(seconds: 30);
   static const Duration _apiReceiveTimeout = Duration(minutes: 2);
@@ -160,17 +166,20 @@ class MultipartMediaUploader {
       _throwIfCancelled(request.cancelToken);
       _setProgress(request, 1);
 
-      final Response<dynamic> presignResponse = await apiClient.post<dynamic>(
-        '$mediaBaseUrl/presign-multipart',
-        data: _payload(
-          request.fields,
-          allowKeys: _presignKeys,
-          extra: <String, dynamic>{
-            'filename': request.filename,
-            'file_size': request.fileSize,
-          },
-        ),
+      final Response<dynamic> presignResponse = await _postWithTransientRetry(
         cancelToken: request.cancelToken,
+        request: () => apiClient.post<dynamic>(
+          '$mediaBaseUrl/presign-multipart',
+          data: _payload(
+            request.fields,
+            allowKeys: _presignKeys,
+            extra: <String, dynamic>{
+              'filename': request.filename,
+              'file_size': request.fileSize,
+            },
+          ),
+          cancelToken: request.cancelToken,
+        ),
       );
 
       if (!UploadResult.isSuccessStatus(presignResponse.statusCode)) {
@@ -227,23 +236,26 @@ class MultipartMediaUploader {
 
       _throwIfCancelled(request.cancelToken);
 
-      final Response<dynamic> confirmResponse = await apiClient.post<dynamic>(
-        '$mediaBaseUrl/confirm-multipart',
-        data: _payload(
-          request.fields,
-          allowKeys: _confirmKeys,
-          extra: <String, dynamic>{
-            'object_key': objectKey,
-            'upload_id': uploadId,
-            'adapter_slug': adapterSlug,
-            'filename': request.filename,
-            'parts': completedParts,
-          },
-        ),
+      final Response<dynamic> confirmResponse = await _postWithTransientRetry(
         cancelToken: request.cancelToken,
-        options: Options(
-          sendTimeout: kIsWeb ? null : _apiSendTimeout,
-          receiveTimeout: _apiReceiveTimeout,
+        request: () => apiClient.post<dynamic>(
+          '$mediaBaseUrl/confirm-multipart',
+          data: _payload(
+            request.fields,
+            allowKeys: _confirmKeys,
+            extra: <String, dynamic>{
+              'object_key': objectKey,
+              'upload_id': uploadId,
+              'adapter_slug': adapterSlug,
+              'filename': request.filename,
+              'parts': completedParts,
+            },
+          ),
+          cancelToken: request.cancelToken,
+          options: Options(
+            sendTimeout: kIsWeb ? null : _apiSendTimeout,
+            receiveTimeout: _apiReceiveTimeout,
+          ),
         ),
       );
 
@@ -269,11 +281,76 @@ class MultipartMediaUploader {
       );
       return result;
     } finally {
-      if (sessionStarted && !succeeded) {
+      final bool userCancelled = request.cancelToken?.isCancelled == true;
+      if (shouldAbortMultipartOnExit(
+        sessionStarted: sessionStarted,
+        succeeded: succeeded,
+        userCancelled: userCancelled,
+      )) {
         await abortSession();
       }
       apiClient.close(force: true);
     }
+  }
+
+  @visibleForTesting
+  static bool shouldAbortMultipartOnExit({
+    required bool sessionStarted,
+    required bool succeeded,
+    required bool userCancelled,
+  }) {
+    return sessionStarted && !succeeded && userCancelled;
+  }
+
+  static Future<Response<dynamic>> _postWithTransientRetry({
+    required CancelToken? cancelToken,
+    required Future<Response<dynamic>> Function() request,
+  }) async {
+    int attempt = 0;
+    while (attempt < defaultMaxPartAttempts) {
+      _throwIfCancelled(cancelToken);
+      try {
+        return await request();
+      } on DioException catch (error) {
+        if (!isTransientPartUploadError(error)) {
+          rethrow;
+        }
+        attempt++;
+        if (attempt >= defaultMaxPartAttempts) {
+          rethrow;
+        }
+        final Duration backoff = defaultPartRetryBackoff[
+            math.min(attempt - 1, defaultPartRetryBackoff.length - 1)];
+        await Future<void>.delayed(backoff);
+      }
+    }
+    return await request();
+  }
+
+  @visibleForTesting
+  static bool isTransientPartUploadError(Object error) {
+    if (error is _UploadCancelledException ||
+        error is MultipartPartCancelledException) {
+      return false;
+    }
+    if (error is DioException) {
+      if (error.type == DioExceptionType.cancel) {
+        return false;
+      }
+      if (error.type == DioExceptionType.connectionTimeout ||
+          error.type == DioExceptionType.receiveTimeout ||
+          error.type == DioExceptionType.sendTimeout ||
+          error.type == DioExceptionType.connectionError ||
+          error.type == DioExceptionType.unknown) {
+        return true;
+      }
+      final int? statusCode = error.response?.statusCode;
+      if (statusCode != null && statusCode >= 500) {
+        return true;
+      }
+      return false;
+    }
+    return false;
   }
 
   static Future<List<Map<String, dynamic>>> _uploadPartsInParallel({
@@ -349,41 +426,65 @@ class MultipartMediaUploader {
           return;
         }
 
-        try {
-          final String etag = await request.putPart(
-            url: partUrl,
-            partNumber: partNumber,
-            offset: offset,
-            length: length,
-            cancelToken: partCancelToken,
-            onBytesSent: (int bytesSent) {
-              if (stopped || partCancelToken.isCancelled) {
-                return;
-              }
-              bytesSentByPart[partNumber] = bytesSent.clamp(0, length);
-              reportProgress();
-            },
-          );
-
-          if (stopped || partCancelToken.isCancelled) {
+        int partAttempt = 0;
+        while (partAttempt < defaultMaxPartAttempts) {
+          if (stopped ||
+              partCancelToken.isCancelled ||
+              request.cancelToken?.isCancelled == true) {
             return;
           }
-
-          if (etag.isEmpty) {
-            throw StateError(
-              'Missing ETag for part $partNumber. Check Spaces CORS ExposeHeaders.',
+          try {
+            final String etag = await request.putPart(
+              url: partUrl,
+              partNumber: partNumber,
+              offset: offset,
+              length: length,
+              cancelToken: partCancelToken,
+              onBytesSent: (int bytesSent) {
+                if (stopped || partCancelToken.isCancelled) {
+                  return;
+                }
+                bytesSentByPart[partNumber] = bytesSent.clamp(0, length);
+                reportProgress();
+              },
             );
-          }
 
-          completedParts.add(<String, dynamic>{
-            'part_number': partNumber,
-            'etag': etag,
-          });
-          bytesSentByPart[partNumber] = length;
-          reportProgress();
-        } catch (error) {
-          failAndStop(error, reason: 'part#$partNumber failed');
-          return;
+            if (stopped || partCancelToken.isCancelled) {
+              return;
+            }
+
+            if (etag.isEmpty) {
+              throw StateError(
+                'Missing ETag for part $partNumber. Check Spaces CORS ExposeHeaders.',
+              );
+            }
+
+            completedParts.add(<String, dynamic>{
+              'part_number': partNumber,
+              'etag': etag,
+            });
+            bytesSentByPart[partNumber] = length;
+            reportProgress();
+            break;
+          } catch (error) {
+            if (error is _UploadCancelledException ||
+                error is MultipartPartCancelledException ||
+                (error is DioException &&
+                    error.type == DioExceptionType.cancel) ||
+                request.cancelToken?.isCancelled == true) {
+              failAndStop(error, reason: 'part#$partNumber cancelled');
+              return;
+            }
+            partAttempt++;
+            if (!isTransientPartUploadError(error) ||
+                partAttempt >= defaultMaxPartAttempts) {
+              failAndStop(error, reason: 'part#$partNumber failed');
+              return;
+            }
+            final Duration backoff = defaultPartRetryBackoff[
+                math.min(partAttempt - 1, defaultPartRetryBackoff.length - 1)];
+            await Future<void>.delayed(backoff);
+          }
         }
       }
     }

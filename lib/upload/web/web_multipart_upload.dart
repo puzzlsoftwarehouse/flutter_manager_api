@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:manager_api/upload/common/blur_hash_encoder.dart';
 import 'package:manager_api/upload/common/upload_fields.dart';
+import 'package:manager_api/default_api_failures.dart';
 import 'package:manager_api/upload/common/upload_map_reader.dart';
 import 'package:manager_api/upload/common/upload_result.dart';
 import 'package:manager_api/upload/multipart/multipart_media_uploader.dart';
@@ -14,6 +15,17 @@ import 'package:rxdart/subjects.dart';
 import 'package:web/web.dart' as web;
 
 class WebMultipartUpload {
+  static final Map<String, web.Blob> _sourceBlobCacheByPath =
+      <String, web.Blob>{};
+
+  static void clearSourceBlobCache({String? path}) {
+    if (path == null || path.isEmpty) {
+      _sourceBlobCacheByPath.clear();
+      return;
+    }
+    _sourceBlobCacheByPath.remove(path);
+  }
+
   final XFile file;
   final String url;
   final Map<String, dynamic> parameters;
@@ -46,7 +58,13 @@ class WebMultipartUpload {
     }
 
     const WebUploadBlobLoader blobLoader = WebUploadBlobLoader();
-    final web.Blob fileBlob = await blobLoader.load(file);
+    final String blobCacheKey = _sourceBlobCacheKey(file);
+    final web.Blob? cachedBlob = _sourceBlobCacheByPath[blobCacheKey];
+    final web.Blob fileBlob =
+        cachedBlob ?? await blobLoader.load(file);
+    if (cachedBlob == null) {
+      _sourceBlobCacheByPath[blobCacheKey] = fileBlob;
+    }
     final Future<String?>? blurHashFuture = _resolveBlurHashFuture(
       file: file,
       fields: fields,
@@ -74,7 +92,8 @@ class WebMultipartUpload {
         isWeb: true,
       );
 
-      return await MultipartMediaUploader.upload(
+      final Map<String, dynamic> uploadResult =
+          await MultipartMediaUploader.upload(
         MultipartMediaUploadRequest(
           mediaBaseUrl: url,
           headers: headers,
@@ -130,9 +149,10 @@ class WebMultipartUpload {
                     '';
               }
 
-              throw StateError(
-                result['detail']?.toString() ??
-                    'Failed to upload multipart part $partNumber',
+              _throwForWorkerFailure(
+                result: result,
+                uploadUrl: url,
+                partNumber: partNumber,
               );
             } finally {
               await partCancelSubscription.cancel();
@@ -143,8 +163,16 @@ class WebMultipartUpload {
           },
         ),
       );
+      if (uploadResult['data'] != null) {
+        clearSourceBlobCache(path: blobCacheKey);
+      }
+      return uploadResult;
     } catch (error) {
-      uploadWorker.abortAll();
+      if (error is MultipartPartCancelledException ||
+          (error is DioException && error.type == DioExceptionType.cancel)) {
+        uploadWorker.abortAll();
+        return UploadResult.canceled();
+      }
       return UploadResult.fromCaughtError(error);
     } finally {
       await cancelSubscription?.cancel();
@@ -155,6 +183,42 @@ class WebMultipartUpload {
       }
       uploadWorker.dispose();
     }
+  }
+
+  static String _sourceBlobCacheKey(XFile file) {
+    if (file.path.isNotEmpty) {
+      return file.path;
+    }
+    return '${file.name}|${file.mimeType ?? ''}|${file.length ?? 0}';
+  }
+
+  static Never _throwForWorkerFailure({
+    required Map<String, dynamic> result,
+    required String uploadUrl,
+    required int partNumber,
+  }) {
+    final String? exceptionCode = result['exception_code']?.toString();
+    if (exceptionCode == DefaultAPIFailures.cancelErrorCode) {
+      throw const MultipartPartCancelledException();
+    }
+    if (exceptionCode == DefaultAPIFailures.noConnectionCode) {
+      throw DioException(
+        requestOptions: RequestOptions(path: uploadUrl),
+        type: DioExceptionType.connectionError,
+        message: result['detail']?.toString(),
+      );
+    }
+    if (exceptionCode == DefaultAPIFailures.timeoutCode) {
+      throw DioException(
+        requestOptions: RequestOptions(path: uploadUrl),
+        type: DioExceptionType.sendTimeout,
+        message: result['detail']?.toString(),
+      );
+    }
+    throw StateError(
+      result['detail']?.toString() ??
+          'Failed to upload multipart part $partNumber',
+    );
   }
 
   static const int _webBlurHashMaxBytes = 8 * 1024 * 1024;
