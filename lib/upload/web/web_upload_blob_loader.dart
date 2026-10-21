@@ -21,9 +21,6 @@ class WebUploadBlobLoader {
           if (resolvedObject is web.Blob) {
             return resolvedObject;
           }
-          if (resolvedObject is web.File) {
-            return resolvedObject;
-          }
         } catch (_) {}
       }
     }
