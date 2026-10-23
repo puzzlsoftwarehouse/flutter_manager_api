@@ -15,17 +15,6 @@ import 'package:rxdart/subjects.dart';
 import 'package:web/web.dart' as web;
 
 class WebMultipartUpload {
-  static final Map<String, web.Blob> _sourceBlobCacheByPath =
-      <String, web.Blob>{};
-
-  static void clearSourceBlobCache({String? path}) {
-    if (path == null || path.isEmpty) {
-      _sourceBlobCacheByPath.clear();
-      return;
-    }
-    _sourceBlobCacheByPath.remove(path);
-  }
-
   final XFile file;
   final String url;
   final Map<String, dynamic> parameters;
@@ -58,12 +47,7 @@ class WebMultipartUpload {
     }
 
     const WebUploadBlobLoader blobLoader = WebUploadBlobLoader();
-    final String blobCacheKey = _sourceBlobCacheKey(file);
-    final web.Blob? cachedBlob = _sourceBlobCacheByPath[blobCacheKey];
-    final web.Blob fileBlob = cachedBlob ?? await blobLoader.load(file);
-    if (cachedBlob == null) {
-      _sourceBlobCacheByPath[blobCacheKey] = fileBlob;
-    }
+    final web.Blob fileBlob = await blobLoader.load(file);
     final Future<String?>? blurHashFuture = _resolveBlurHashFuture(
       file: file,
       fields: fields,
@@ -164,14 +148,12 @@ class WebMultipartUpload {
       );
       return uploadResult;
     } catch (error) {
-      if (error is MultipartPartCancelledException ||
-          (error is DioException && error.type == DioExceptionType.cancel)) {
+      if (MultipartMediaUploader.isUploadCancelledException(error)) {
         uploadWorker.abortAll();
         return UploadResult.canceled();
       }
       return UploadResult.fromCaughtError(error);
     } finally {
-      clearSourceBlobCache(path: blobCacheKey);
       await cancelSubscription?.cancel();
       for (final void Function() cancel in List<void Function()>.from(
         activeCancels,
@@ -180,13 +162,6 @@ class WebMultipartUpload {
       }
       uploadWorker.dispose();
     }
-  }
-
-  static String _sourceBlobCacheKey(XFile file) {
-    if (file.path.isNotEmpty) {
-      return file.path;
-    }
-    return '${file.name}|${file.mimeType ?? ''}|${file.length ?? 0}';
   }
 
   static Never _throwForWorkerFailure({

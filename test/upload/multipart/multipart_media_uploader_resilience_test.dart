@@ -59,5 +59,17 @@ void main() {
         );
       },
     );
+
+    test(
+      'Should classify multipart part cancellation as upload cancelled',
+      () {
+        expect(
+          MultipartMediaUploader.isUploadCancelledException(
+            const MultipartPartCancelledException(),
+          ),
+          isTrue,
+        );
+      },
+    );
   });
 }

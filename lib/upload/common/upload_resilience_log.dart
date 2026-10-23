@@ -1,6 +1,11 @@
 import 'package:flutter/foundation.dart';
 
+typedef UploadResilienceLogEventListener = void Function(
+    String event, Map<String, Object?> details);
+
 abstract final class UploadResilienceLog {
+  static UploadResilienceLogEventListener? eventListener;
+
   static bool get enabled {
     const bool fromEnvironment = bool.fromEnvironment('UPLOAD_RESILIENCE_LOG');
     return fromEnvironment || kDebugMode;
@@ -17,6 +22,7 @@ abstract final class UploadResilienceLog {
     String event, {
     Map<String, Object?> details = const <String, Object?>{},
   }) {
+    eventListener?.call(event, details);
     if (!enabled) {
       return;
     }
