@@ -81,11 +81,12 @@ function uploadRawPut(method, uploadUrl, data, headers, requestId) {
 
   xhr.onabort = function () {
     delete activeRequests[requestId];
+    var offline = typeof navigator !== 'undefined' && navigator && navigator.onLine === false;
     postMessage(JSON.stringify({
       kind: 'failure',
       requestId: requestId,
-      exception_code: 'cancel',
-      detail: 'Request canceled'
+      exception_code: offline ? 'noConnection' : 'cancel',
+      detail: offline ? 'No internet connection' : 'Request canceled'
     }));
   };
 
@@ -164,11 +165,12 @@ function uploadFile(method, uploadUrl, data, headers, requestId) {
 
   xhr.onabort = function () {
     delete activeRequests[requestId];
+    var offline = typeof navigator !== 'undefined' && navigator && navigator.onLine === false;
     postMessage(JSON.stringify({
       kind: 'failure',
       requestId: requestId,
-      exception_code: 'cancel',
-      detail: 'Request canceled'
+      exception_code: offline ? 'noConnection' : 'cancel',
+      detail: offline ? 'No internet connection' : 'Request canceled'
     }));
   };
 
